@@ -1,124 +1,150 @@
 #!/bin/bash
 
-# Colori
+# Colori per output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Directory dello script
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-NGROK_CONFIG="$SCRIPT_DIR/ngrok.yml"
-CACHE_FILE="$SCRIPT_DIR/.ngrok-cache"
-MAX_RETRIES=3
-TIMEOUT=60
+# Directory del progetto
+PROJECT_DIR="/home/erry002/Melo_project"
+CONFIG_DIR="$HOME/.config/ngrok"
 
-# Funzione per ottimizzare le prestazioni del sistema
-optimize_system() {
-    echo -e "${BLUE}🔧 Ottimizzazione sistema...${NC}"
-    
-    # Limita la CPU per altri processi
-    sudo renice -n 10 $(pgrep -v "^(ngrok|node)$") >/dev/null 2>&1
-    
-    # Pulisci la cache del sistema
-    sudo sync && sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
-    
-    # Disabilita servizi non necessari temporaneamente
-    for service in bluetooth avahi-daemon triggerhappy; do
-        sudo systemctl stop $service >/dev/null 2>&1
-    done
+# Funzione per il menu
+show_menu() {
+    clear
+    echo -e "${BLUE}🌍 Meluccio Ngrok Manager${NC}"
+    echo -e "\n${BLUE}Seleziona un'opzione:${NC}"
+    echo -e "${GREEN}1${NC}. Avvia tunnel"
+    echo -e "${GREEN}2${NC}. Configura Ngrok"
+    echo -e "${GREEN}3${NC}. Mostra URL attivi"
+    echo -e "${GREEN}4${NC}. Ferma tunnel"
+    echo -e "${GREEN}5${NC}. Esci"
+    echo
+    read -p "Scelta (1-5): " choice
 }
 
-# Funzione per ripristinare il sistema
-restore_system() {
-    echo -e "${BLUE}🔄 Ripristino sistema...${NC}"
+# Configura Ngrok
+configure_ngrok() {
+    echo -e "\n${BLUE}⚙️  Configurazione Ngrok...${NC}"
     
-    # Ripristina la priorità dei processi
-    sudo renice -n 0 $(pgrep -v "^(ngrok|node)$") >/dev/null 2>&1
-    
-    # Riavvia i servizi
-    for service in bluetooth avahi-daemon triggerhappy; do
-        sudo systemctl start $service >/dev/null 2>&1
-    done
-}
-
-# Funzione per avviare Ngrok con cache
-start_ngrok() {
-    echo -e "${BLUE}🚀 Avvio Ngrok...${NC}"
-    
-    # Verifica se esiste un URL cached valido
-    if [ -f "$CACHE_FILE" ]; then
-        CACHED_URL=$(cat "$CACHE_FILE")
-        CACHED_TIME=$(stat -c %Y "$CACHE_FILE")
-        CURRENT_TIME=$(date +%s)
-        
-        # Se la cache è più recente di 2 ore
-        if [ $((CURRENT_TIME - CACHED_TIME)) -lt 7200 ]; then
-            echo -e "${GREEN}✨ Usando URL cached: $CACHED_URL${NC}"
-            echo "$CACHED_URL"
-            return 0
-        fi
+    # Installa Ngrok se non presente
+    if ! command -v ngrok &> /dev/null; then
+        echo -e "${YELLOW}⚠️  Ngrok non trovato. Installazione...${NC}"
+        curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+        echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+        sudo apt update && sudo apt install -y ngrok
     fi
     
-    # Ottimizza il sistema prima di avviare Ngrok
-    optimize_system
+    # Richiedi token
+    read -p "Inserisci il tuo authtoken Ngrok: " token
     
-    # Avvia Ngrok con timeout
-    for ((i=1; i<=MAX_RETRIES; i++)); do
-        echo -e "${BLUE}🔄 Tentativo $i di $MAX_RETRIES${NC}"
-        
-        # Avvia Ngrok in background
-        ngrok start --config="$NGROK_CONFIG" meluccio > /tmp/ngrok.log 2>&1 &
-        NGROK_PID=$!
-        
-        # Aspetta che Ngrok sia pronto
-        for ((t=1; t<=TIMEOUT; t++)); do
-            sleep 1
-            if curl -s localhost:4040/api/tunnels | grep -q "https://"; then
-                URL=$(curl -s localhost:4040/api/tunnels | grep -o "https://[^\"]*")
-                echo "$URL" > "$CACHE_FILE"
-                echo -e "${GREEN}✅ Ngrok avviato: $URL${NC}"
-                return 0
-            fi
-            echo -n "."
-        done
-        
-        # Se il timeout è scaduto, termina Ngrok e riprova
-        kill $NGROK_PID 2>/dev/null
-        wait $NGROK_PID 2>/dev/null
-        echo -e "\n${RED}❌ Timeout, riprovo...${NC}"
-    done
+    # Configura Ngrok
+    mkdir -p $CONFIG_DIR
+    cat > $CONFIG_DIR/ngrok.yml << EOF
+version: "2"
+authtoken: "$token"
+tunnels:
+  web:
+    addr: 80
+    proto: http
+  websocket:
+    addr: 3001
+    proto: http
+    inspect: false
+EOF
     
-    echo -e "${RED}❌ Impossibile avviare Ngrok dopo $MAX_RETRIES tentativi${NC}"
-    restore_system
-    return 1
+    echo -e "${GREEN}✅ Configurazione salvata${NC}"
 }
 
-# Funzione per fermare Ngrok
-stop_ngrok() {
-    echo -e "${BLUE}🛑 Arresto Ngrok...${NC}"
+# Avvia tunnel
+start_tunnel() {
+    echo -e "\n${BLUE}🚀 Avvio tunnel...${NC}"
+    
+    # Verifica configurazione
+    if [ ! -f $CONFIG_DIR/ngrok.yml ]; then
+        echo -e "${RED}❌ Configurazione Ngrok non trovata${NC}"
+        configure_ngrok
+    fi
+    
+    # Ferma tunnel esistenti
     pkill -f ngrok
-    restore_system
-    echo -e "${GREEN}✅ Ngrok arrestato${NC}"
+    
+    # Avvia tunnel
+    ngrok start --all --config $CONFIG_DIR/ngrok.yml &
+    
+    # Attendi che i tunnel siano pronti
+    echo -e "${YELLOW}⏳ Attendi l'avvio dei tunnel...${NC}"
+    sleep 5
+    
+    # Mostra URL
+    show_urls
 }
 
-# Menu principale
-case "$1" in
-    start)
-        start_ngrok
-        ;;
-    stop)
-        stop_ngrok
-        ;;
-    restart)
-        stop_ngrok
-        sleep 2
-        start_ngrok
-        ;;
-    *)
-        echo "Uso: $0 {start|stop|restart}"
-        exit 1
-        ;;
-esac
+# Mostra URL
+show_urls() {
+    echo -e "\n${BLUE}🔗 URL Attivi:${NC}"
+    
+    # Ottieni gli URL da Ngrok API
+    URLS=$(curl -s http://localhost:4040/api/tunnels | grep -o '"public_url":"[^"]*"' | cut -d'"' -f4)
+    
+    if [ -n "$URLS" ]; then
+        echo -e "${GREEN}Frontend:${NC}"
+        echo "$URLS" | grep "https" | head -n 1
+        echo -e "\n${GREEN}WebSocket:${NC}"
+        echo "$URLS" | grep "https" | tail -n 1
+        
+        # Aggiorna il file di configurazione del frontend
+        FRONTEND_URL=$(echo "$URLS" | grep "https" | head -n 1)
+        WEBSOCKET_URL=$(echo "$URLS" | grep "https" | tail -n 1)
+        
+        echo -e "\n${BLUE}📝 Aggiorno configurazione frontend...${NC}"
+        cat > $PROJECT_DIR/Meluccio-frontend/src/config.js << EOF
+export const SOCKET_URL = "$WEBSOCKET_URL";
+export const FRONTEND_URL = "$FRONTEND_URL";
+EOF
+        
+        echo -e "${GREEN}✅ Configurazione aggiornata${NC}"
+    else
+        echo -e "${RED}❌ Nessun tunnel attivo${NC}"
+    fi
+}
 
-exit 0
+# Ferma tunnel
+stop_tunnel() {
+    echo -e "\n${BLUE}🛑 Arresto tunnel...${NC}"
+    pkill -f ngrok
+    echo -e "${GREEN}✅ Tunnel arrestati${NC}"
+}
+
+# Loop principale
+while true; do
+    show_menu
+    case $choice in
+        1)
+            start_tunnel
+            read -p "Premi Enter per continuare"
+            ;;
+        2)
+            configure_ngrok
+            read -p "Premi Enter per continuare"
+            ;;
+        3)
+            show_urls
+            read -p "Premi Enter per continuare"
+            ;;
+        4)
+            stop_tunnel
+            read -p "Premi Enter per continuare"
+            ;;
+        5)
+            echo -e "\n${GREEN}👋 Arrivederci!${NC}"
+            exit 0
+            ;;
+        *)
+            echo -e "\n${RED}❌ Scelta non valida!${NC}"
+            read -p "Premi Enter per continuare"
+            ;;
+    esac
+done

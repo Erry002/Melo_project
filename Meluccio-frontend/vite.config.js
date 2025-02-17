@@ -13,4 +13,20 @@ export default defineConfig({
     'process.env': {},
     global: 'window',
   },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    emptyOutDir: true,
+    sourcemap: false,
+  },
+  server: {
+    host: true,
+    port: 5173,
+    proxy: {
+      '/socket.io': {
+        target: 'http://localhost:3001',
+        ws: true,
+      }
+    }
+  },
 });

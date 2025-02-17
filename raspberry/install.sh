@@ -75,77 +75,88 @@ if ! npm list express &> /dev/null; then
     npm install express
 fi
 
-# Crea lo script di avvio
-echo -e "\n${BLUE}📝 Creazione script di avvio...${NC}"
-cat > $PROJECT_DIR/start-server.sh << EOF
-#!/bin/bash
-
-# Imposta variabili ambiente
-export NODE_ENV=production
-export NODE_OPTIONS="--max-old-space-size=512"
-
-# Vai alla directory del progetto
-cd $PROJECT_DIR
-
-# Verifica dipendenze
-if [ ! -d "node_modules" ]; then
-    echo "Installazione dipendenze..."
-    npm install --production
-fi
-
-# Avvia il server
-exec /usr/bin/node server.js
-EOF
-
-chmod +x $PROJECT_DIR/start-server.sh
-chown erry002:erry002 $PROJECT_DIR/start-server.sh
-
-# Configura il servizio systemd
-echo -e "\n${BLUE}⚙️  Configurazione servizio systemd...${NC}"
-sudo tee /etc/systemd/system/meluccio.service << EOF
-[Unit]
-Description=Meluccio Chat Server
-After=network.target
-
-[Service]
-Type=simple
-User=erry002
-Group=erry002
-WorkingDirectory=$PROJECT_DIR
-Environment=NODE_ENV=production
-Environment=NODE_OPTIONS=--max-old-space-size=512
-ExecStart=/bin/bash $PROJECT_DIR/start-server.sh
-Restart=always
-RestartSec=10
-
-# Logging
-StandardOutput=append:$LOGS_DIR/node.log
-StandardError=append:$LOGS_DIR/node-error.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Crea directory per i log
-mkdir -p $LOGS_DIR
-touch $LOGS_DIR/node.log $LOGS_DIR/node-error.log
-chown -R erry002:erry002 $LOGS_DIR
-chmod -R 755 $LOGS_DIR
-
-# Ricarica systemd
+# Rimuovi vecchio servizio systemd
+echo -e "\n${BLUE}🧹 Pulizia configurazione precedente...${NC}"
+sudo systemctl stop meluccio 2>/dev/null
+sudo systemctl disable meluccio 2>/dev/null
+sudo rm -f /etc/systemd/system/meluccio.service
 sudo systemctl daemon-reload
 
-# Prova ad avviare il server manualmente per verificare
-echo -e "\n${BLUE}🔍 Verifica server Node.js...${NC}"
-if node $PROJECT_DIR/server.js --test; then
-    echo -e "${GREEN}✅ Server Node.js funzionante${NC}"
-    sudo systemctl enable meluccio
-    sudo systemctl start meluccio
-else
-    echo -e "${RED}❌ Errore nell'avvio del server Node.js${NC}"
-    echo -e "Controlla i log in $LOGS_DIR/node-error.log"
-    exit 1
-fi
+# Ferma tutti i processi node
+sudo killall -9 node 2>/dev/null
+pm2 delete all 2>/dev/null
+pm2 flush
+
+# Configura PM2
+echo -e "\n${BLUE}⚙️ Configurazione PM2...${NC}"
+
+# Crea file di configurazione PM2
+cat > $PROJECT_DIR/ecosystem.config.js << EOF
+module.exports = {
+  apps: [{
+    name: 'meluccio',
+    script: 'server.js',
+    cwd: '${PROJECT_DIR}',
+    
+    // Gestione ambiente
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3001
+    },
+    
+    // Gestione processo
+    exec_mode: 'fork',
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '512M',
+    
+    // Gestione errori
+    max_restarts: 10,
+    min_uptime: '5s',
+    
+    // Logging
+    log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    error_file: '${LOGS_DIR}/pm2-error.log',
+    out_file: '${LOGS_DIR}/pm2-out.log',
+    combine_logs: true,
+    
+    // Monitoraggio
+    monitor: true,
+    time: true,
+    
+    // Gestione risorse
+    node_args: '--max-old-space-size=512',
+    kill_timeout: 3000,
+    wait_ready: true,
+    listen_timeout: 3000,
+    
+    // Controllo porte
+    increment_var: 'PORT',
+    restart_delay: 4000
+  }]
+};
+EOF
+
+# Avvia con PM2
+echo -e "\n${BLUE}🚀 Avvio applicazione...${NC}"
+cd $PROJECT_DIR
+pm2 start ecosystem.config.js
+
+# Salva configurazione
+pm2 save
+
+# Configura avvio automatico
+echo -e "\n${BLUE}⚡️ Configurazione avvio automatico...${NC}"
+pm2 startup | grep "sudo env" | bash
+
+# Verifica stato
+echo -e "\n${BLUE}🔍 Verifica stato...${NC}"
+pm2 list
+
+# Mostra i log
+echo -e "\n${BLUE}📝 Ultimi log...${NC}"
+pm2 logs --lines 10
 
 # Build frontend
 echo -e "\n${BLUE}🏗️ Build frontend...${NC}"
@@ -170,7 +181,7 @@ cd $PROJECT_DIR
 # Configura Nginx
 echo -e "\n${BLUE}🌐 Configurazione Nginx...${NC}"
 
-# Backup e pulizia
+# Ferma Nginx e pulisci configurazioni
 sudo systemctl stop nginx
 sudo rm -f /etc/nginx/sites-enabled/*
 sudo rm -f /etc/nginx/sites-available/*
@@ -179,7 +190,7 @@ sudo rm -f /etc/nginx/sites-available/*
 mkdir -p $PROJECT_DIR/Meluccio-frontend/dist
 sudo chown -R erry002:erry002 $PROJECT_DIR/Meluccio-frontend
 
-# Crea configurazione principale
+# Crea configurazione Nginx
 sudo tee /etc/nginx/nginx.conf << EOF
 user www-data;
 worker_processes auto;
@@ -213,13 +224,13 @@ http {
         root $PROJECT_DIR/Meluccio-frontend/dist;
         index index.html;
 
-        # Configurazione base
+        # Configurazione base per il frontend
         location / {
             try_files \$uri \$uri/ /index.html;
             add_header Cache-Control "no-cache";
         }
 
-        # API e WebSocket
+        # Proxy per il backend
         location /socket.io/ {
             proxy_pass http://localhost:3001;
             proxy_http_version 1.1;
@@ -228,12 +239,15 @@ http {
             proxy_set_header Host \$host;
             proxy_set_header X-Real-IP \$remote_addr;
             proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_read_timeout 86400;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+            
+            # Timeout più lunghi per WebSocket
             proxy_connect_timeout 7d;
             proxy_send_timeout 7d;
+            proxy_read_timeout 7d;
         }
 
-        # Gestione errori
+        # Pagine di errore personalizzate
         error_page 404 /404.html;
         error_page 500 502 503 504 /50x.html;
         
@@ -242,29 +256,6 @@ http {
         }
     }
 }
-EOF
-
-# Crea pagina di errore personalizzata
-sudo tee $PROJECT_DIR/Meluccio-frontend/dist/50x.html << EOF
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Errore Server</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 50px;
-        }
-        h1 { color: #333; }
-        p { color: #666; }
-    </style>
-</head>
-<body>
-    <h1>Oops! Qualcosa è andato storto</h1>
-    <p>Stiamo lavorando per risolvere il problema. Riprova tra qualche minuto.</p>
-</body>
-</html>
 EOF
 
 # Verifica configurazione
@@ -282,7 +273,6 @@ fi
 # Ricarica servizi
 echo -e "\n${BLUE}🔄 Riavvio servizi...${NC}"
 sudo systemctl daemon-reload
-sudo systemctl enable meluccio
 sudo systemctl restart nginx
 
 # Verifica permessi finali
@@ -295,4 +285,4 @@ echo -e "   Local: ${GREEN}http://localhost${NC}"
 echo -e "   Network: ${GREEN}http://$(hostname -I | cut -d' ' -f1)${NC}"
 echo -e "\n📊 Monitoraggio:"
 echo -e "   Logs: ${GREEN}$LOGS_DIR/${NC}"
-echo -e "   Status: ${GREEN}systemctl status meluccio${NC}"
+echo -e "   Status: ${GREEN}pm2 list${NC}"
