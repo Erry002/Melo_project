@@ -39,14 +39,19 @@ fi
 echo -e "Node.js version: $(node --version)"
 echo -e "npm version: $(npm --version)"
 
+# Definizione variabili
+USER_HOME="/home/erry002"
+PROJECT_DIR="$USER_HOME/Melo_project"
+LOGS_DIR="$PROJECT_DIR/logs"
+
 # Verifica permessi directory
 echo -e "\n${BLUE}🔍 Verifica permessi...${NC}"
-sudo chown -R $USER:$USER /home/pi/meluccio
-sudo chmod -R 755 /home/pi/meluccio
+sudo chown -R erry002:erry002 $PROJECT_DIR
+sudo chmod -R 755 $PROJECT_DIR
 
 # Installa dipendenze
 echo -e "\n${BLUE}📦 Installazione dipendenze...${NC}"
-cd /home/pi/meluccio
+cd $PROJECT_DIR
 npm install --production
 
 # Verifica dipendenze critiche
@@ -84,108 +89,59 @@ chmod +x start-server.sh
 pm2 startup
 pm2 save
 
-# Crea directory progetto
-echo -e "\n${BLUE}📁 Configurazione directory...${NC}"
-mkdir -p ~/meluccio
-cp -r ../* ~/meluccio/
-cd ~/meluccio
-
 # Crea directory per i log
-mkdir -p logs
+echo -e "\n${BLUE}📁 Creazione directory logs...${NC}"
+mkdir -p $LOGS_DIR
+chown -R erry002:erry002 $LOGS_DIR
 
-# Installa dipendenze progetto
-echo -e "\n${BLUE}📦 Installazione dipendenze progetto...${NC}"
-cd Meluccio-frontend && npm install --production
-cd .. && npm install --production
-
-# Build frontend ottimizzato
-echo -e "\n${BLUE}🏗️  Build frontend...${NC}"
-cd Meluccio-frontend
-export NODE_OPTIONS="--max-old-space-size=512"
-npm run build
-cd ..
-
-# Fix problemi Nginx
-echo -e "\n${BLUE}🔧 Configurazione Nginx...${NC}"
-
-# Ferma Nginx prima di tutto
-sudo systemctl stop nginx
-
-# Pulisci le vecchie configurazioni
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo rm -f /etc/nginx/sites-enabled/meluccio
-
-# Crea e imposta i permessi delle directory
-echo -e "${BLUE}📁 Creazione directory logs...${NC}"
-sudo mkdir -p /home/pi/meluccio/logs
-sudo touch /home/pi/meluccio/logs/nginx-access.log
-sudo touch /home/pi/meluccio/logs/nginx-error.log
-sudo chown -R www-data:www-data /home/pi/meluccio/logs
-sudo chmod -R 755 /home/pi/meluccio/logs
-sudo chmod 644 /home/pi/meluccio/logs/nginx-*.log
-
-# Verifica che i file esistano
-if [ ! -f "/home/pi/meluccio/logs/nginx-access.log" ] || [ ! -f "/home/pi/meluccio/logs/nginx-error.log" ]; then
-    echo -e "${RED}❌ Errore nella creazione dei file di log${NC}"
-    exit 1
-fi
-
-# Backup configurazione esistente
-sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
-
-# Crea configurazione pulita
-echo -e "${BLUE}⚙️  Configurazione Nginx...${NC}"
-sudo tee /etc/nginx/nginx.conf << EOF
-user www-data;
-worker_processes auto;
-pid /run/nginx.pid;
-include /etc/nginx/modules-enabled/*.conf;
-
-events {
-    worker_connections 768;
-}
-
-http {
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    keepalive_timeout 65;
-    types_hash_max_size 2048;
-
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
-
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers on;
-
-    access_log /home/pi/meluccio/logs/nginx-access.log;
-    error_log /home/pi/meluccio/logs/nginx-error.log warn;
-
-    gzip on;
-
-    include /etc/nginx/conf.d/*.conf;
-    include /etc/nginx/sites-enabled/*;
-}
+# Crea lo script di avvio
+cat > $PROJECT_DIR/start-server.sh << EOF
+#!/bin/bash
+cd $PROJECT_DIR
+exec /usr/bin/node server.js 2>&1
 EOF
 
-# Crea configurazione del sito
+chmod +x $PROJECT_DIR/start-server.sh
+chown erry002:erry002 $PROJECT_DIR/start-server.sh
+
+# Crea il servizio
+sudo tee /etc/systemd/system/meluccio.service << EOF
+[Unit]
+Description=Meluccio Chat Server
+After=network.target
+
+[Service]
+Type=simple
+User=erry002
+Group=erry002
+WorkingDirectory=$PROJECT_DIR
+ExecStart=/bin/bash $PROJECT_DIR/start-server.sh
+Restart=on-failure
+RestartSec=10
+
+# Limiti di sistema
+LimitNOFILE=4096
+
+# Logging
+StandardOutput=append:$LOGS_DIR/server.log
+StandardError=append:$LOGS_DIR/error.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Configura Nginx
 sudo tee /etc/nginx/sites-available/meluccio << EOF
 server {
     listen 80 default_server;
     server_name _;
-    root /home/pi/meluccio/Meluccio-frontend/dist;
+    root $PROJECT_DIR/Meluccio-frontend/dist;
 
-    access_log /home/pi/meluccio/logs/nginx-access.log;
-    error_log /home/pi/meluccio/logs/nginx-error.log warn;
+    access_log $LOGS_DIR/nginx-access.log;
+    error_log $LOGS_DIR/nginx-error.log warn;
 
     location / {
-        proxy_pass http://localhost:5173;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 300s;
+        try_files \$uri \$uri/ /index.html;
     }
 
     location /socket.io/ {
@@ -201,129 +157,22 @@ server {
 EOF
 
 # Abilita il sito
-sudo ln -sf /etc/nginx/sites-available/meluccio /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/meluccio /etc/nginx/sites-enabled/default
 
-# Test configurazione
-echo -e "\n${BLUE}🔍 Verifica configurazione Nginx...${NC}"
-sudo nginx -t
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ Configurazione Nginx valida${NC}"
-    sudo systemctl restart nginx
-    
-    # Verifica che Nginx sia effettivamente in esecuzione
-    if sudo systemctl is-active --quiet nginx; then
-        echo -e "${GREEN}✅ Nginx avviato con successo${NC}"
-    else
-        echo -e "${RED}❌ Nginx non si è avviato correttamente${NC}"
-        echo -e "Ultimi log:"
-        sudo journalctl -u nginx.service -n 50 --no-pager
-        exit 1
-    fi
-else
-    echo -e "${RED}❌ Errore nella configurazione Nginx${NC}"
-    echo -e "Controlla i log:"
-    sudo journalctl -u nginx.service -n 50 --no-pager
-    exit 1
-fi
-
-# Configura Redis per la gestione sessioni
-echo -e "\n${BLUE}⚙️  Configurazione Redis...${NC}"
-sudo sed -i 's/# maxmemory <bytes>/maxmemory 100mb/g' /etc/redis/redis.conf
-sudo sed -i 's/# maxmemory-policy noeviction/maxmemory-policy allkeys-lru/g' /etc/redis/redis.conf
-sudo systemctl restart redis-server
-
-# Configura Ngrok
-echo -e "\n${BLUE}🌐 Configurazione Ngrok...${NC}"
-if ! command -v ngrok &> /dev/null; then
-    curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-    echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-    sudo apt update && sudo apt install ngrok
-fi
-
-# Copia configurazione Ngrok
-mkdir -p ~/.config/ngrok
-cp ngrok.yml ~/.config/ngrok/
-chmod +x ngrok-manager.sh
-
-# Crea servizio systemd per Ngrok
-sudo tee /etc/systemd/system/ngrok.service << EOF
-[Unit]
-Description=Ngrok Tunnel Service
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/meluccio
-ExecStart=/home/pi/meluccio/raspberry/ngrok-manager.sh start
-ExecStop=/home/pi/meluccio/raspberry/ngrok-manager.sh stop
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable ngrok
-
-# Configura servizio systemd
-echo -e "\n${BLUE}⚙️  Configurazione servizio systemd...${NC}"
-
-# Crea directory per i log
-sudo mkdir -p /home/pi/meluccio/logs
-sudo chown -R pi:pi /home/pi/meluccio/logs
-
-# Crea lo script di avvio
-cat > /home/pi/meluccio/start-server.sh << EOF
-#!/bin/bash
-cd /home/pi/meluccio
-exec /usr/bin/node server.js 2>&1
-EOF
-
-chmod +x /home/pi/meluccio/start-server.sh
-chown pi:pi /home/pi/meluccio/start-server.sh
-
-# Crea il servizio
-sudo tee /etc/systemd/system/meluccio.service << EOF
-[Unit]
-Description=Meluccio Chat Server
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/home/pi/meluccio
-ExecStart=/bin/bash /home/pi/meluccio/start-server.sh
-Restart=on-failure
-RestartSec=10
-
-# Limiti di sistema
-LimitNOFILE=4096
-
-# Logging
-StandardOutput=append:/home/pi/meluccio/logs/server.log
-StandardError=append:/home/pi/meluccio/logs/error.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Ricarica e abilita
-echo -e "\n${BLUE}🔄 Riavvio servizio...${NC}"
+# Ricarica servizi
+echo -e "\n${BLUE}🔄 Riavvio servizi...${NC}"
 sudo systemctl daemon-reload
 sudo systemctl enable meluccio
+sudo systemctl restart nginx
 
 # Verifica permessi finali
-sudo chown -R pi:pi /home/pi/meluccio
-sudo chmod -R 755 /home/pi/meluccio
+chown -R erry002:erry002 $PROJECT_DIR
+chmod -R 755 $PROJECT_DIR
 
 echo -e "\n${GREEN}✅ Installazione completata!${NC}"
 echo -e "\n📱 App disponibile su:"
 echo -e "   Local: ${GREEN}http://localhost${NC}"
 echo -e "   Network: ${GREEN}http://$(hostname -I | cut -d' ' -f1)${NC}"
 echo -e "\n📊 Monitoraggio:"
-echo -e "   Logs: ${GREEN}/home/pi/meluccio/logs/${NC}"
+echo -e "   Logs: ${GREEN}$LOGS_DIR/${NC}"
 echo -e "   Status: ${GREEN}systemctl status meluccio${NC}"
