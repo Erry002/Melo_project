@@ -1,16 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { io } from "socket.io-client";
 import SimplePeer from "simple-peer";
 import { MicrophoneIcon, SpeakerWaveIcon } from "@heroicons/react/24/solid";
 
 window.global = window;
 
-const socket = io("https://3c25-95-247-188-40.ngrok-free.app", {
-  transports: ["websocket"],
+const SOCKET_URL = import.meta.env.PROD 
+  ? "https://88ca-95-247-188-40.ngrok-free.app"  // URL produzione
+  : "http://localhost:3001";      // URL sviluppo
+
+const socket = io(SOCKET_URL, {
+  transports: ["websocket", "polling"],
   withCredentials: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
   extraHeaders: {
     "ngrok-skip-browser-warning": "true"
   }
+});
+
+socket.on("connect_error", (err) => {
+  console.log("Errore di connessione:", err.message);
+  console.log("Stato socket:", socket.connected);
+});
+
+socket.on("connect", () => {
+  console.log("Connesso al server! ✅");
 });
 
 export default function App() {
@@ -19,14 +34,72 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [username, setUsername] = useState("");
-  const [peer, setPeer] = useState(null);
+  const [peers, setPeers] = useState(new Map());
+  const [localStream, setLocalStream] = useState(null);
+  const [isVoiceConnected, setIsVoiceConnected] = useState(false);
   const [users, setUsers] = useState([]);
 
-  useEffect(() => {
-    socket.on("connect_error", (err) => {
-      console.error("Connection error:", err.message);
+  const createPeer = useCallback(async (targetPeerId, initiator = false) => {
+    if (!localStream) return;
+    
+    const peer = new SimplePeer({
+      initiator,
+      stream: localStream,
+      trickle: false,
+      config: { 
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:global.stun.twilio.com:3478' }
+        ]
+      }
     });
 
+    peer.on('signal', signal => {
+      socket.emit('voiceSignal', { signal, targetPeerId });
+    });
+
+    peer.on('stream', stream => {
+      const audio = new Audio();
+      audio.srcObject = stream;
+      audio.play().catch(console.error);
+    });
+
+    return peer;
+  }, [localStream]);
+
+  const startVoiceChat = async () => {
+    try {
+      if (isVoiceConnected) {
+        // Disconnetti
+        localStream?.getTracks().forEach(track => track.stop());
+        peers.forEach(peer => peer.destroy());
+        setPeers(new Map());
+        setLocalStream(null);
+        setIsVoiceConnected(false);
+        socket.emit('leaveVoiceChannel', currentChannel);
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      setLocalStream(stream);
+      setIsVoiceConnected(true);
+      socket.emit('joinVoiceChannel', currentChannel);
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      alert('Errore accesso microfono: ' + error.message);
+    }
+  };
+
+  useEffect(() => {
+    console.log('Stato socket:', socket.connected ? 'CONNESSO ' : 'DISCONNESSO ');
+    socket.on('disconnect', () => console.log('Socket disconnected!'));
     socket.on("serverList", (data) => {
       setServers(data);
     });
@@ -44,8 +117,66 @@ export default function App() {
       socket.off("serverList");
       socket.off("newMessage");
       socket.off("userUpdate");
+      socket.off("connect");
+      socket.off("disconnect");
     };
   }, []);
+
+  useEffect(() => {
+    console.log('Stato socket:', socket.connected ? 'CONNESSO ' : 'DISCONNESSO ');
+    
+    socket.on('userList', (userList) => {
+      console.log('Users online:', userList);
+      setUsers(userList);
+    });
+
+    return () => {
+      socket.off("userList");
+    };
+  }, [username]);
+
+  useEffect(() => {
+    socket.on('userJoinedVoice', async ({ peerId, username }) => {
+      console.log(`${username} joined voice chat`);
+      const peer = await createPeer(peerId, true);
+      if (peer) {
+        setPeers(prev => new Map(prev).set(peerId, peer));
+      }
+    });
+
+    socket.on('userLeftVoice', ({ peerId }) => {
+      setPeers(prev => {
+        const newPeers = new Map(prev);
+        newPeers.get(peerId)?.destroy();
+        newPeers.delete(peerId);
+        return newPeers;
+      });
+    });
+
+    socket.on('voiceSignal', async ({ signal, peerId, username }) => {
+      let peer = peers.get(peerId);
+      
+      if (!peer) {
+        peer = await createPeer(peerId, false);
+        if (peer) {
+          setPeers(prev => new Map(prev).set(peerId, peer));
+        }
+      }
+
+      try {
+        peer?.signal(signal);
+      } catch (error) {
+        console.error('Error signaling peer:', error);
+      }
+    });
+
+    return () => {
+      socket.off('userJoinedVoice');
+      socket.off('userLeftVoice');
+      socket.off('voiceSignal');
+      peers.forEach(peer => peer.destroy());
+    };
+  }, [peers, createPeer]);
 
   const joinChannel = (serverId, channelId) => {
     if (!username.trim()) return alert("Inserisci un username!");
@@ -60,33 +191,11 @@ export default function App() {
     }
   };
 
-  const startVoiceChat = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { 
-          noiseSuppression: true,
-          echoCancellation: true 
-        }
-      });
-
-      const newPeer = new SimplePeer({
-        initiator: true,
-        stream: stream,
-        config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
-      });
-
-      newPeer.on("signal", data => {
-        socket.emit("voiceSignal", { channelId: currentChannel, signal: data });
-      });
-
-      socket.on("voiceSignal", signal => {
-        newPeer.signal(signal);
-      });
-
-      setPeer(newPeer);
-    } catch (error) {
-      console.error("Error accessing microphone:", error);
-      alert("Microphone access required!");
+  const handleUsernameChange = (e) => {
+    const newUsername = e.target.value;
+    setUsername(newUsername);
+    if (socket.connected && newUsername) {
+      socket.emit('setUsername', newUsername);
     }
   };
 
@@ -127,17 +236,19 @@ export default function App() {
             type="text"
             placeholder="Username"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={handleUsernameChange}
             className="bg-gray-700 px-4 py-2 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           
           {currentChannel && (
             <button
               onClick={startVoiceChat}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+              className={`flex items-center gap-2 px-4 py-2 ${
+                isVoiceConnected ? 'bg-red-600' : 'bg-green-600'
+              } rounded-lg hover:opacity-90 transition-colors`}
             >
               <MicrophoneIcon className="h-5 w-5" />
-              Avvia chat vocale
+              {isVoiceConnected ? 'Disconnetti' : 'Connetti'}
             </button>
           )}
 
