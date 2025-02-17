@@ -5,8 +5,8 @@ import { MicrophoneIcon, SpeakerWaveIcon } from "@heroicons/react/24/solid";
 
 window.global = window;
 
-const SOCKET_URL = import.meta.env.PROD 
-  ? "https://88ca-95-247-188-40.ngrok-free.app"  // URL produzione
+const SOCKET_URL = "https://7331-95-247-188-40.ngrok-free.app";
+  ? "https://2d83-95-247-188-40.ngrok-free.app"  // URL produzione
   : "http://localhost:3001";      // URL sviluppo
 
 const socket = io(SOCKET_URL, {
