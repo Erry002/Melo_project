@@ -25,9 +25,64 @@ echo -e "\n${BLUE}🔄 Aggiornamento Node.js...${NC}"
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
-# Installa PM2
-echo -e "\n${BLUE}📊 Installazione PM2...${NC}"
-sudo npm install -g pm2
+# Verifica Node.js e npm
+echo -e "\n${BLUE}📦 Verifica Node.js e npm...${NC}"
+
+# Controlla se Node.js è installato
+if ! command -v node &> /dev/null; then
+    echo -e "${RED}❌ Node.js non trovato. Installazione...${NC}"
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+fi
+
+# Mostra versioni
+echo -e "Node.js version: $(node --version)"
+echo -e "npm version: $(npm --version)"
+
+# Verifica permessi directory
+echo -e "\n${BLUE}🔍 Verifica permessi...${NC}"
+sudo chown -R $USER:$USER /home/pi/meluccio
+sudo chmod -R 755 /home/pi/meluccio
+
+# Installa dipendenze
+echo -e "\n${BLUE}📦 Installazione dipendenze...${NC}"
+cd /home/pi/meluccio
+npm install --production
+
+# Verifica dipendenze critiche
+echo -e "\n${BLUE}🔍 Verifica dipendenze critiche...${NC}"
+if ! npm list socket.io &> /dev/null; then
+    echo -e "${RED}❌ socket.io non trovato. Installazione...${NC}"
+    npm install socket.io
+fi
+
+if ! npm list express &> /dev/null; then
+    echo -e "${RED}❌ express non trovato. Installazione...${NC}"
+    npm install express
+fi
+
+# Installa PM2 per gestione processi
+echo -e "\n${BLUE}⚙️ Configurazione PM2...${NC}"
+if ! command -v pm2 &> /dev/null; then
+    sudo npm install -g pm2
+fi
+
+# Crea script di avvio del server
+cat > start-server.sh << EOF
+#!/bin/bash
+export NODE_ENV=production
+export UV_THREADPOOL_SIZE=2
+export NODE_OPTIONS="--max-old-space-size=512"
+
+# Avvia il server con PM2
+pm2 start server.js --name meluccio-server --max-memory-restart 512M
+EOF
+
+chmod +x start-server.sh
+
+# Configura PM2 per avvio automatico
+pm2 startup
+pm2 save
 
 # Crea directory progetto
 echo -e "\n${BLUE}📁 Configurazione directory...${NC}"
@@ -213,56 +268,57 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable ngrok
 
-# Crea servizio systemd migliorato
-echo -e "\n${BLUE}⚙️  Configurazione servizio...${NC}"
+# Configura servizio systemd
+echo -e "\n${BLUE}⚙️  Configurazione servizio systemd...${NC}"
+
+# Crea directory per i log
+sudo mkdir -p /home/pi/meluccio/logs
+sudo chown -R pi:pi /home/pi/meluccio/logs
+
+# Crea lo script di avvio
+cat > /home/pi/meluccio/start-server.sh << EOF
+#!/bin/bash
+cd /home/pi/meluccio
+exec /usr/bin/node server.js 2>&1
+EOF
+
+chmod +x /home/pi/meluccio/start-server.sh
+chown pi:pi /home/pi/meluccio/start-server.sh
+
+# Crea il servizio
 sudo tee /etc/systemd/system/meluccio.service << EOF
 [Unit]
 Description=Meluccio Chat Server
-After=network.target redis-server.service
-Requires=redis-server.service
+After=network.target
 
 [Service]
 Type=simple
 User=pi
+Group=pi
 WorkingDirectory=/home/pi/meluccio
-Environment=NODE_ENV=production
-Environment=NODE_OPTIONS=--max-old-space-size=512
-Environment=DEBUG=socket.io:*
-ExecStart=/usr/bin/node server.js
-Restart=always
+ExecStart=/bin/bash /home/pi/meluccio/start-server.sh
+Restart=on-failure
 RestartSec=10
-StandardOutput=append:/home/pi/meluccio/logs/server.log
-StandardError=append:/home/pi/meluccio/logs/server-error.log
 
 # Limiti di sistema
-LimitNOFILE=65535
-MemoryAccounting=true
-MemoryHigh=512M
-MemoryMax=600M
+LimitNOFILE=4096
+
+# Logging
+StandardOutput=append:/home/pi/meluccio/logs/server.log
+StandardError=append:/home/pi/meluccio/logs/error.log
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
+# Ricarica e abilita
+echo -e "\n${BLUE}🔄 Riavvio servizio...${NC}"
 sudo systemctl daemon-reload
-sudo systemctl enable meluccio redis-server
-sudo systemctl start meluccio
+sudo systemctl enable meluccio
 
-# Configura logrotate
-sudo tee /etc/logrotate.d/meluccio << EOF
-/home/pi/meluccio/logs/*.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    notifempty
-    create 640 pi pi
-    sharedscripts
-    postrotate
-        systemctl reload meluccio
-    endscript
-}
-EOF
+# Verifica permessi finali
+sudo chown -R pi:pi /home/pi/meluccio
+sudo chmod -R 755 /home/pi/meluccio
 
 echo -e "\n${GREEN}✅ Installazione completata!${NC}"
 echo -e "\n📱 App disponibile su:"

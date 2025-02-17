@@ -94,15 +94,42 @@ EOF
 # Funzione per avviare il server
 start_server() {
     echo -e "${BLUE}🖥️  Avvio server Node...${NC}"
-    node server.js > "$LOG_DIR/server.log" 2>&1 &
-    SERVER_PID=$!
-    echo $SERVER_PID > "$LOG_DIR/server.pid"
-    sleep 2
     
-    if ps -p $SERVER_PID > /dev/null; then
+    # Verifica Node.js
+    if ! command -v node &> /dev/null; then
+        echo -e "${RED}❌ Node.js non trovato. Esegui prima install.sh${NC}"
+        exit 1
+    fi
+    
+    # Verifica PM2
+    if ! command -v pm2 &> /dev/null; then
+        echo -e "${RED}❌ PM2 non trovato. Esegui prima install.sh${NC}"
+        exit 1
+    }
+    
+    # Verifica dipendenze
+    if [ ! -d "node_modules" ]; then
+        echo -e "${YELLOW}⚠️ Installazione dipendenze...${NC}"
+        npm install --production
+    fi
+    
+    # Avvia il server con PM2
+    export NODE_ENV=production
+    export UV_THREADPOOL_SIZE=2
+    export NODE_OPTIONS="--max-old-space-size=512"
+    
+    pm2 start server.js --name meluccio-server --max-memory-restart 512M > "$LOG_DIR/server.log" 2>&1
+    
+    # Verifica che il server sia partito
+    sleep 2
+    if pm2 show meluccio-server | grep -q "online"; then
         echo -e "${GREEN}✅ Server Node avviato${NC}"
+        SERVER_PID=$(pm2 show meluccio-server | grep pid | awk '{print $4}')
+        echo $SERVER_PID > "$LOG_DIR/server.pid"
     else
         echo -e "${RED}❌ Errore avvio server Node${NC}"
+        echo -e "Ultimi log:"
+        tail -n 10 "$LOG_DIR/server.log"
         exit 1
     fi
 }
