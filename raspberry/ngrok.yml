@@ -1,0 +1,20 @@
+version: "2"
+console_ui: false
+web_addr: localhost:4040
+region: eu
+log_level: warn
+log_format: json
+
+tunnels:
+  meluccio:
+    addr: 3001
+    proto: http
+    inspect: false
+    schemes: 
+      - https
+    metadata: "app=meluccio"
+    compression: true
+    bandwidth_limit:
+      rate: 1000000 # 1MB/s
+    proxy_proto: false
+    bind_tls: true

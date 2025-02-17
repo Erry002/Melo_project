@@ -94,6 +94,41 @@ sudo sed -i 's/# maxmemory <bytes>/maxmemory 100mb/g' /etc/redis/redis.conf
 sudo sed -i 's/# maxmemory-policy noeviction/maxmemory-policy allkeys-lru/g' /etc/redis/redis.conf
 sudo systemctl restart redis-server
 
+# Configura Ngrok
+echo -e "\n${BLUE}🌐 Configurazione Ngrok...${NC}"
+if ! command -v ngrok &> /dev/null; then
+    curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+    echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+    sudo apt update && sudo apt install ngrok
+fi
+
+# Copia configurazione Ngrok
+mkdir -p ~/.config/ngrok
+cp ngrok.yml ~/.config/ngrok/
+chmod +x ngrok-manager.sh
+
+# Crea servizio systemd per Ngrok
+sudo tee /etc/systemd/system/ngrok.service << EOF
+[Unit]
+Description=Ngrok Tunnel Service
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/meluccio
+ExecStart=/home/pi/meluccio/raspberry/ngrok-manager.sh start
+ExecStop=/home/pi/meluccio/raspberry/ngrok-manager.sh stop
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable ngrok
+
 # Crea servizio systemd migliorato
 echo -e "\n${BLUE}⚙️  Configurazione servizio...${NC}"
 sudo tee /etc/systemd/system/meluccio.service << EOF

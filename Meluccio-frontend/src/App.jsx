@@ -6,7 +6,7 @@ import { MicrophoneIcon, SpeakerWaveIcon } from "@heroicons/react/24/solid";
 
 window.global = window;
 
-const SOCKET_URL = "https://e2e7-95-247-188-40.ngrok-free.app";
+const SOCKET_URL = "https://0faa-95-247-188-40.ngrok-free.app";
 
 export default function App() {
   const [socket, setSocket] = useState(null);
