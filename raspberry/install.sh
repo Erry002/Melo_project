@@ -25,19 +25,28 @@ echo -e "\n${BLUE}🔄 Aggiornamento Node.js...${NC}"
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
-# Verifica Node.js e npm
-echo -e "\n${BLUE}📦 Verifica Node.js e npm...${NC}"
+# Configura Node.js
+echo -e "\n${BLUE}⚙️  Configurazione Node.js...${NC}"
 
-# Controlla se Node.js è installato
+# Verifica Node.js
 if ! command -v node &> /dev/null; then
-    echo -e "${RED}❌ Node.js non trovato. Installazione...${NC}"
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-    sudo apt-get install -y nodejs
+    echo -e "${RED}❌ Node.js non trovato${NC}"
+    exit 1
+fi
+
+# Verifica npm
+if ! command -v npm &> /dev/null; then
+    echo -e "${RED}❌ npm non trovato${NC}"
+    exit 1
 fi
 
 # Mostra versioni
-echo -e "Node.js version: $(node --version)"
-echo -e "npm version: $(npm --version)"
+echo -e "Node.js: $(node --version)"
+echo -e "npm: $(npm --version)"
+
+# Installa dipendenze globali
+echo -e "\n${BLUE}📦 Installazione dipendenze globali...${NC}"
+sudo npm install -g pm2
 
 # Definizione variabili
 USER_HOME="/home/erry002"
@@ -66,45 +75,33 @@ if ! npm list express &> /dev/null; then
     npm install express
 fi
 
-# Installa PM2 per gestione processi
-echo -e "\n${BLUE}⚙️ Configurazione PM2...${NC}"
-if ! command -v pm2 &> /dev/null; then
-    sudo npm install -g pm2
-fi
-
-# Crea script di avvio del server
-cat > start-server.sh << EOF
-#!/bin/bash
-export NODE_ENV=production
-export UV_THREADPOOL_SIZE=2
-export NODE_OPTIONS="--max-old-space-size=512"
-
-# Avvia il server con PM2
-pm2 start server.js --name meluccio-server --max-memory-restart 512M
-EOF
-
-chmod +x start-server.sh
-
-# Configura PM2 per avvio automatico
-pm2 startup
-pm2 save
-
-# Crea directory per i log
-echo -e "\n${BLUE}📁 Creazione directory logs...${NC}"
-mkdir -p $LOGS_DIR
-chown -R erry002:erry002 $LOGS_DIR
-
 # Crea lo script di avvio
+echo -e "\n${BLUE}📝 Creazione script di avvio...${NC}"
 cat > $PROJECT_DIR/start-server.sh << EOF
 #!/bin/bash
+
+# Imposta variabili ambiente
+export NODE_ENV=production
+export NODE_OPTIONS="--max-old-space-size=512"
+
+# Vai alla directory del progetto
 cd $PROJECT_DIR
-exec /usr/bin/node server.js 2>&1
+
+# Verifica dipendenze
+if [ ! -d "node_modules" ]; then
+    echo "Installazione dipendenze..."
+    npm install --production
+fi
+
+# Avvia il server
+exec /usr/bin/node server.js
 EOF
 
 chmod +x $PROJECT_DIR/start-server.sh
 chown erry002:erry002 $PROJECT_DIR/start-server.sh
 
-# Crea il servizio
+# Configura il servizio systemd
+echo -e "\n${BLUE}⚙️  Configurazione servizio systemd...${NC}"
 sudo tee /etc/systemd/system/meluccio.service << EOF
 [Unit]
 Description=Meluccio Chat Server
@@ -115,49 +112,172 @@ Type=simple
 User=erry002
 Group=erry002
 WorkingDirectory=$PROJECT_DIR
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=512
 ExecStart=/bin/bash $PROJECT_DIR/start-server.sh
-Restart=on-failure
+Restart=always
 RestartSec=10
 
-# Limiti di sistema
-LimitNOFILE=4096
-
 # Logging
-StandardOutput=append:$LOGS_DIR/server.log
-StandardError=append:$LOGS_DIR/error.log
+StandardOutput=append:$LOGS_DIR/node.log
+StandardError=append:$LOGS_DIR/node-error.log
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
+# Crea directory per i log
+mkdir -p $LOGS_DIR
+touch $LOGS_DIR/node.log $LOGS_DIR/node-error.log
+chown -R erry002:erry002 $LOGS_DIR
+chmod -R 755 $LOGS_DIR
+
+# Ricarica systemd
+sudo systemctl daemon-reload
+
+# Prova ad avviare il server manualmente per verificare
+echo -e "\n${BLUE}🔍 Verifica server Node.js...${NC}"
+if node $PROJECT_DIR/server.js --test; then
+    echo -e "${GREEN}✅ Server Node.js funzionante${NC}"
+    sudo systemctl enable meluccio
+    sudo systemctl start meluccio
+else
+    echo -e "${RED}❌ Errore nell'avvio del server Node.js${NC}"
+    echo -e "Controlla i log in $LOGS_DIR/node-error.log"
+    exit 1
+fi
+
+# Build frontend
+echo -e "\n${BLUE}🏗️ Build frontend...${NC}"
+cd $PROJECT_DIR/Meluccio-frontend
+
+# Installa dipendenze
+npm install
+
+# Build
+echo -e "${BLUE}⚙️ Eseguo build...${NC}"
+npm run build
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✅ Build completato${NC}"
+else
+    echo -e "${RED}❌ Errore durante il build${NC}"
+    exit 1
+fi
+
+cd $PROJECT_DIR
+
 # Configura Nginx
-sudo tee /etc/nginx/sites-available/meluccio << EOF
-server {
-    listen 80 default_server;
-    server_name _;
-    root $PROJECT_DIR/Meluccio-frontend/dist;
+echo -e "\n${BLUE}🌐 Configurazione Nginx...${NC}"
+
+# Backup e pulizia
+sudo systemctl stop nginx
+sudo rm -f /etc/nginx/sites-enabled/*
+sudo rm -f /etc/nginx/sites-available/*
+
+# Crea directory per i file statici
+mkdir -p $PROJECT_DIR/Meluccio-frontend/dist
+sudo chown -R erry002:erry002 $PROJECT_DIR/Meluccio-frontend
+
+# Crea configurazione principale
+sudo tee /etc/nginx/nginx.conf << EOF
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+
+events {
+    worker_connections 768;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
 
     access_log $LOGS_DIR/nginx-access.log;
-    error_log $LOGS_DIR/nginx-error.log warn;
+    error_log $LOGS_DIR/nginx-error.log debug;
 
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
+    gzip on;
+    gzip_disable "msie6";
 
-    location /socket.io/ {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 300s;
+    server {
+        listen 80 default_server;
+        server_name _;
+        
+        # Root directory per i file statici
+        root $PROJECT_DIR/Meluccio-frontend/dist;
+        index index.html;
+
+        # Configurazione base
+        location / {
+            try_files \$uri \$uri/ /index.html;
+            add_header Cache-Control "no-cache";
+        }
+
+        # API e WebSocket
+        location /socket.io/ {
+            proxy_pass http://localhost:3001;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_read_timeout 86400;
+            proxy_connect_timeout 7d;
+            proxy_send_timeout 7d;
+        }
+
+        # Gestione errori
+        error_page 404 /404.html;
+        error_page 500 502 503 504 /50x.html;
+        
+        location = /50x.html {
+            root /usr/share/nginx/html;
+        }
     }
 }
 EOF
 
-# Abilita il sito
-sudo ln -sf /etc/nginx/sites-available/meluccio /etc/nginx/sites-enabled/default
+# Crea pagina di errore personalizzata
+sudo tee $PROJECT_DIR/Meluccio-frontend/dist/50x.html << EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Errore Server</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+        }
+        h1 { color: #333; }
+        p { color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Oops! Qualcosa è andato storto</h1>
+    <p>Stiamo lavorando per risolvere il problema. Riprova tra qualche minuto.</p>
+</body>
+</html>
+EOF
+
+# Verifica configurazione
+echo -e "\n${BLUE}🔍 Verifica configurazione Nginx...${NC}"
+sudo nginx -t
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✅ Configurazione Nginx valida${NC}"
+    sudo systemctl restart nginx
+else
+    echo -e "${RED}❌ Errore nella configurazione Nginx${NC}"
+    exit 1
+fi
 
 # Ricarica servizi
 echo -e "\n${BLUE}🔄 Riavvio servizi...${NC}"

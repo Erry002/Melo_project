@@ -1,4 +1,5 @@
 version: "2"
+authtoken: "your-token-here"  # Inserisci il tuo token Ngrok
 console_ui: false
 web_addr: localhost:4040
 region: eu
@@ -6,7 +7,10 @@ log_level: warn
 log_format: json
 
 tunnels:
-  meluccio:
+  web:
+    addr: 80
+    proto: http
+  websocket:
     addr: 3001
     proto: http
     inspect: false
