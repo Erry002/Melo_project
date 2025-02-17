@@ -50,43 +50,127 @@ export NODE_OPTIONS="--max-old-space-size=512"
 npm run build
 cd ..
 
-# Configura Nginx con health check
+# Fix problemi Nginx
 echo -e "\n${BLUE}🔧 Configurazione Nginx...${NC}"
+
+# Ferma Nginx prima di tutto
+sudo systemctl stop nginx
+
+# Pulisci le vecchie configurazioni
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo rm -f /etc/nginx/sites-enabled/meluccio
+
+# Crea e imposta i permessi delle directory
+echo -e "${BLUE}📁 Creazione directory logs...${NC}"
+sudo mkdir -p /home/pi/meluccio/logs
+sudo touch /home/pi/meluccio/logs/nginx-access.log
+sudo touch /home/pi/meluccio/logs/nginx-error.log
+sudo chown -R www-data:www-data /home/pi/meluccio/logs
+sudo chmod -R 755 /home/pi/meluccio/logs
+sudo chmod 644 /home/pi/meluccio/logs/nginx-*.log
+
+# Verifica che i file esistano
+if [ ! -f "/home/pi/meluccio/logs/nginx-access.log" ] || [ ! -f "/home/pi/meluccio/logs/nginx-error.log" ]; then
+    echo -e "${RED}❌ Errore nella creazione dei file di log${NC}"
+    exit 1
+fi
+
+# Backup configurazione esistente
+sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
+
+# Crea configurazione pulita
+echo -e "${BLUE}⚙️  Configurazione Nginx...${NC}"
+sudo tee /etc/nginx/nginx.conf << EOF
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 768;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    access_log /home/pi/meluccio/logs/nginx-access.log;
+    error_log /home/pi/meluccio/logs/nginx-error.log warn;
+
+    gzip on;
+
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
+EOF
+
+# Crea configurazione del sito
 sudo tee /etc/nginx/sites-available/meluccio << EOF
 server {
-    listen 80;
-    server_name meluccio.local;
+    listen 80 default_server;
+    server_name _;
+    root /home/pi/meluccio/Meluccio-frontend/dist;
+
+    access_log /home/pi/meluccio/logs/nginx-access.log;
+    error_log /home/pi/meluccio/logs/nginx-error.log warn;
 
     location / {
-        root /home/pi/meluccio/Meluccio-frontend/dist;
-        try_files \$uri \$uri/ /index.html;
+        proxy_pass http://localhost:5173;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
     }
 
     location /socket.io/ {
         proxy_pass http://localhost:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
     }
-
-    location /health {
-        proxy_pass http://localhost:3001/health;
-        proxy_http_version 1.1;
-        access_log off;
-        proxy_cache_bypass \$http_pragma;
-        proxy_cache_revalidate on;
-        expires 0;
-        add_header Cache-Control private;
-    }
-
-    # Logging configurazione
-    access_log /home/pi/meluccio/logs/nginx-access.log;
-    error_log /home/pi/meluccio/logs/nginx-error.log;
 }
 EOF
 
+# Abilita il sito
 sudo ln -sf /etc/nginx/sites-available/meluccio /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl restart nginx
+
+# Test configurazione
+echo -e "\n${BLUE}🔍 Verifica configurazione Nginx...${NC}"
+sudo nginx -t
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✅ Configurazione Nginx valida${NC}"
+    sudo systemctl restart nginx
+    
+    # Verifica che Nginx sia effettivamente in esecuzione
+    if sudo systemctl is-active --quiet nginx; then
+        echo -e "${GREEN}✅ Nginx avviato con successo${NC}"
+    else
+        echo -e "${RED}❌ Nginx non si è avviato correttamente${NC}"
+        echo -e "Ultimi log:"
+        sudo journalctl -u nginx.service -n 50 --no-pager
+        exit 1
+    fi
+else
+    echo -e "${RED}❌ Errore nella configurazione Nginx${NC}"
+    echo -e "Controlla i log:"
+    sudo journalctl -u nginx.service -n 50 --no-pager
+    exit 1
+fi
 
 # Configura Redis per la gestione sessioni
 echo -e "\n${BLUE}⚙️  Configurazione Redis...${NC}"
