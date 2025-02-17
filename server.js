@@ -28,6 +28,11 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'Meluccio-frontend/dist/index.html'));
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {

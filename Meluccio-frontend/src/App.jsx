@@ -1,34 +1,17 @@
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from 'react';
 import { io } from "socket.io-client";
-import SimplePeer from "simple-peer";
+import SimplePeer from 'simple-peer';
+import { findBestUrl, handleReconnection } from './utils/connection';
 import { MicrophoneIcon, SpeakerWaveIcon } from "@heroicons/react/24/solid";
 
 window.global = window;
 
-const SOCKET_URL = "https://7331-95-247-188-40.ngrok-free.app";
-  ? "https://2d83-95-247-188-40.ngrok-free.app"  // URL produzione
-  : "http://localhost:3001";      // URL sviluppo
-
-const socket = io(SOCKET_URL, {
-  transports: ["websocket", "polling"],
-  withCredentials: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  extraHeaders: {
-    "ngrok-skip-browser-warning": "true"
-  }
-});
-
-socket.on("connect_error", (err) => {
-  console.log("Errore di connessione:", err.message);
-  console.log("Stato socket:", socket.connected);
-});
-
-socket.on("connect", () => {
-  console.log("Connesso al server! ✅");
-});
+const SOCKET_URL = "https://e2e7-95-247-188-40.ngrok-free.app";
 
 export default function App() {
+  const [socket, setSocket] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [connectionError, setConnectionError] = useState(null);
   const [servers, setServers] = useState([]);
   const [currentChannel, setCurrentChannel] = useState(null);
   const [message, setMessage] = useState("");
@@ -98,85 +81,112 @@ export default function App() {
   };
 
   useEffect(() => {
-    console.log('Stato socket:', socket.connected ? 'CONNESSO ' : 'DISCONNESSO ');
-    socket.on('disconnect', () => console.log('Socket disconnected!'));
-    socket.on("serverList", (data) => {
-      setServers(data);
-    });
-
-    socket.on("newMessage", (msg) => {
-      setMessages(prev => [...prev, msg]);
-    });
-
-    socket.on("userUpdate", ({ users }) => {
-      setUsers(users);
-    });
-
-    return () => {
-      socket.off("connect_error");
-      socket.off("serverList");
-      socket.off("newMessage");
-      socket.off("userUpdate");
-      socket.off("connect");
-      socket.off("disconnect");
-    };
-  }, []);
-
-  useEffect(() => {
-    console.log('Stato socket:', socket.connected ? 'CONNESSO ' : 'DISCONNESSO ');
-    
-    socket.on('userList', (userList) => {
-      console.log('Users online:', userList);
-      setUsers(userList);
-    });
-
-    return () => {
-      socket.off("userList");
-    };
-  }, [username]);
-
-  useEffect(() => {
-    socket.on('userJoinedVoice', async ({ peerId, username }) => {
-      console.log(`${username} joined voice chat`);
-      const peer = await createPeer(peerId, true);
-      if (peer) {
-        setPeers(prev => new Map(prev).set(peerId, peer));
-      }
-    });
-
-    socket.on('userLeftVoice', ({ peerId }) => {
-      setPeers(prev => {
-        const newPeers = new Map(prev);
-        newPeers.get(peerId)?.destroy();
-        newPeers.delete(peerId);
-        return newPeers;
-      });
-    });
-
-    socket.on('voiceSignal', async ({ signal, peerId, username }) => {
-      let peer = peers.get(peerId);
-      
-      if (!peer) {
-        peer = await createPeer(peerId, false);
-        if (peer) {
-          setPeers(prev => new Map(prev).set(peerId, peer));
-        }
-      }
-
+    const initializeSocket = async () => {
       try {
-        peer?.signal(signal);
-      } catch (error) {
-        console.error('Error signaling peer:', error);
-      }
-    });
+        const bestUrl = await findBestUrl();
+        
+        const newSocket = io(bestUrl, {
+          transports: ["websocket", "polling"],
+          withCredentials: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          extraHeaders: {
+            "ngrok-skip-browser-warning": "true"
+          }
+        });
 
-    return () => {
-      socket.off('userJoinedVoice');
-      socket.off('userLeftVoice');
-      socket.off('voiceSignal');
-      peers.forEach(peer => peer.destroy());
+        newSocket.on("connect", () => {
+          setConnectionStatus('connected');
+          setConnectionError(null);
+        });
+
+        newSocket.on("connect_error", async (error) => {
+          setConnectionStatus('error');
+          setConnectionError(error.message);
+
+          try {
+            const newUrl = await handleReconnection(newSocket);
+            console.log(`Riconnesso con successo usando: ${newUrl}`);
+            setConnectionStatus('connected');
+            setConnectionError(null);
+          } catch (reconnectError) {
+            setConnectionError('Impossibile stabilire una connessione. Riprova più tardi.');
+          }
+        });
+
+        newSocket.on("disconnect", () => {
+          setConnectionStatus('disconnected');
+        });
+
+        newSocket.on("connect_error", (err) => {
+          console.log("Errore di connessione:", err.message);
+          console.log("Stato socket:", newSocket.connected);
+        });
+
+        newSocket.on("serverList", (data) => {
+          setServers(data);
+        });
+
+        newSocket.on("newMessage", (msg) => {
+          setMessages(prev => [...prev, msg]);
+        });
+
+        newSocket.on("userUpdate", ({ users }) => {
+          setUsers(users);
+        });
+
+        newSocket.on('userList', (userList) => {
+          console.log('Users online:', userList);
+          setUsers(userList);
+        });
+
+        newSocket.on('userJoinedVoice', async ({ peerId, username }) => {
+          console.log(`${username} joined voice chat`);
+          const peer = await createPeer(peerId, true);
+          if (peer) {
+            setPeers(prev => new Map(prev).set(peerId, peer));
+          }
+        });
+
+        newSocket.on('userLeftVoice', ({ peerId }) => {
+          setPeers(prev => {
+            const newPeers = new Map(prev);
+            newPeers.get(peerId)?.destroy();
+            newPeers.delete(peerId);
+            return newPeers;
+          });
+        });
+
+        newSocket.on('voiceSignal', async ({ signal, peerId, username }) => {
+          let peer = peers.get(peerId);
+          
+          if (!peer) {
+            peer = await createPeer(peerId, false);
+            if (peer) {
+              setPeers(prev => new Map(prev).set(peerId, peer));
+            }
+          }
+
+          try {
+            peer?.signal(signal);
+          } catch (error) {
+            console.error('Error signaling peer:', error);
+          }
+        });
+
+        setSocket(newSocket);
+
+        return () => {
+          newSocket.disconnect();
+        };
+      } catch (error) {
+        setConnectionStatus('error');
+        setConnectionError('Errore durante l\'inizializzazione della connessione');
+      }
     };
-  }, [peers, createPeer]);
+
+    initializeSocket();
+  }, []);
 
   const joinChannel = (serverId, channelId) => {
     if (!username.trim()) return alert("Inserisci un username!");
@@ -194,7 +204,7 @@ export default function App() {
   const handleUsernameChange = (e) => {
     const newUsername = e.target.value;
     setUsername(newUsername);
-    if (socket.connected && newUsername) {
+    if (socket && socket.connected && newUsername) {
       socket.emit('setUsername', newUsername);
     }
   };
