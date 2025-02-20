@@ -10,15 +10,67 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "https://88ca-95-247-188-40.ngrok-free.app",
-  "https://*.ngrok-free.app"
+  "https://*.ngrok-free.app",  // Permette tutti i domini Ngrok
+  "http://localhost",
+  "http://127.0.0.1"
 ];
 
+// Configurazione logging
+const LOG_LEVELS = {
+  DEBUG: '🔍 DEBUG',
+  INFO: 'ℹ️ INFO',
+  WARN: '⚠️ WARN',
+  ERROR: '❌ ERROR'
+};
+
+function log(level, message, data = null) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${level}: ${message}`;
+  console.log(logMessage);
+  if (data) {
+    console.log(JSON.stringify(data, null, 2));
+  }
+}
+
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    // Permetti richieste senza origin (es. WebSocket)
+    if (!origin) return callback(null, true);
+    
+    // Controlla se l'origin è permesso
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed.includes('*')) {
+        const pattern = new RegExp(allowed.replace('*', '.*'));
+        return pattern.test(origin);
+      }
+      return allowed === origin;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS non permesso'));
+    }
+  },
   methods: ["GET", "POST"],
   credentials: true
 }));
+
+// Middleware per logging richieste HTTP
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    log(LOG_LEVELS.INFO, `${req.method} ${req.url} - ${res.statusCode} (${duration}ms)`);
+  });
+  next();
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  log(LOG_LEVELS.ERROR, 'Express error:', err);
+  res.status(500).send('Internal Server Error');
+});
 
 // Servi i file statici dalla cartella dist
 app.use(express.static(path.join(__dirname, 'Meluccio-frontend/dist')));
@@ -30,7 +82,15 @@ app.get('*', (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  const health = {
+    uptime: process.uptime(),
+    timestamp: Date.now(),
+    memory: process.memoryUsage(),
+    connections: io.engine.clientsCount,
+    users: connectedUsers.size
+  };
+  log(LOG_LEVELS.DEBUG, 'Health check', health);
+  res.json(health);
 });
 
 const httpServer = createServer(app);
@@ -66,7 +126,14 @@ const setupExampleServer = () => {
 
 setupExampleServer();
 
+// Gestione WebSocket
 io.on("connection", (socket) => {
+  log(LOG_LEVELS.INFO, `Nuova connessione WebSocket`, {
+    id: socket.id,
+    address: socket.handshake.address,
+    headers: socket.handshake.headers
+  });
+  
   console.log(`✅ New connection: ${socket.id}`);
 
   const sendServerList = () => {
@@ -147,9 +214,22 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("disconnect", () => {
+  socket.on("error", (error) => {
+    log(LOG_LEVELS.ERROR, `Errore WebSocket`, {
+      id: socket.id,
+      error: error.message
+    });
+    console.error(`❌ Socket error (${socket.id}):`, error);
+  });
+
+  socket.on("disconnect", (reason) => {
+    log(LOG_LEVELS.INFO, `Disconnessione WebSocket`, {
+      id: socket.id,
+      reason
+    });
+    console.log(`❌ Disconnection (${socket.id}): ${reason}`);
     connectedUsers.delete(socket.id);
-    io.emit("userList", Array.from(connectedUsers.values()).map(u => u.username));
+    sendServerList();
     
     servers.forEach(server => {
       server.channels.forEach(channel => {

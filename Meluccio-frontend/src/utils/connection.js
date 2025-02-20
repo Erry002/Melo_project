@@ -1,12 +1,20 @@
 // Configurazione URLs
 const URLS = {
-  production: "https://796d-95-247-188-40.ngrok-free.app",
+  production: window.location.protocol === 'https:' 
+    ? window.location.origin  // Usa l'URL corrente se HTTPS
+    : "http://localhost:3001", // Fallback a localhost
   development: "http://localhost:3001",
-  fallback: ["http://localhost:3001", "http://127.0.0.1:3001"]
+  fallback: [
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:80",
+    "http://127.0.0.1:80"
+  ]
 };
 
 // Timeout per il controllo della connessione
 const CONNECTION_TIMEOUT = 5000;
+const MAX_RETRIES = 3;
 
 // Verifica la connessione a un URL
 export const checkConnection = async (url) => {
@@ -47,51 +55,61 @@ export const findBestUrl = async () => {
   return primaryUrl;
 };
 
-// Gestione riconnessione
+// Gestione riconnessione migliorata
 export const handleReconnection = async (socket) => {
-  const maxRetries = 3;
-  let retryCount = 0;
-  
-  return new Promise((resolve, reject) => {
-    const attemptReconnection = async () => {
-      if (retryCount >= maxRetries) {
-        reject(new Error("Impossibile stabilire una connessione dopo multipli tentativi"));
-        return;
-      }
-      
+  let retries = 0;
+  let connected = false;
+
+  while (!connected && retries < MAX_RETRIES) {
+    try {
       const url = await findBestUrl();
-      
-      try {
-        if (socket.connected) {
-          socket.disconnect();
-        }
-        
-        socket.io.uri = url;
-        socket.connect();
-        
-        // Aspetta la connessione o il timeout
-        const connected = await new Promise((res) => {
-          const timeout = setTimeout(() => res(false), CONNECTION_TIMEOUT);
-          socket.once("connect", () => {
-            clearTimeout(timeout);
-            res(true);
-          });
-        });
-        
-        if (connected) {
-          resolve(url);
-        } else {
-          retryCount++;
-          await new Promise(res => setTimeout(res, 1000 * retryCount));
-          attemptReconnection();
-        }
-      } catch (error) {
-        retryCount++;
-        await new Promise(res => setTimeout(res, 1000 * retryCount));
-        attemptReconnection();
+      if (!url) {
+        throw new Error('Nessun URL disponibile');
       }
-    };
-    
-    attemptReconnection();
-  });
+
+      // Chiudi la vecchia connessione se esiste
+      if (socket) {
+        socket.close();
+      }
+
+      // Crea una nuova connessione
+      const newSocket = io(url, {
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+        timeout: CONNECTION_TIMEOUT
+      });
+
+      // Gestione eventi
+      newSocket.on('connect', () => {
+        console.log('✅ Connesso al server:', url);
+        connected = true;
+      });
+
+      newSocket.on('connect_error', (error) => {
+        console.error('❌ Errore di connessione:', error);
+      });
+
+      // Aspetta la connessione
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Timeout connessione'));
+        }, CONNECTION_TIMEOUT);
+
+        newSocket.once('connect', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+
+      return newSocket;
+    } catch (error) {
+      console.error(`❌ Tentativo ${retries + 1}/${MAX_RETRIES} fallito:`, error);
+      retries++;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+
+  throw new Error('Impossibile connettersi al server');
 };

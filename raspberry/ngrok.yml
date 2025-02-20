@@ -1,24 +1,35 @@
 version: "2"
-authtoken: "your-token-here"  # Inserisci il tuo token Ngrok
+authtoken: "2cBHyRUFxgMvYtDPFJKPDRMDkLr_5QyVBRnUPKw8G4zHmFWEp"
 console_ui: false
 web_addr: localhost:4040
 region: eu
-log_level: warn
+log_level: info
 log_format: json
+
+# Configurazione globale
+heartbeat_interval: 1m
+heartbeat_tolerance: 5s
+update_check: false
+metadata: "app=meluccio"
 
 tunnels:
   web:
     addr: 80
     proto: http
+    inspect: false
+    compression: true
+    schemes: 
+      - https
+    metadata: "service=frontend"
+    
   websocket:
     addr: 3001
     proto: http
     inspect: false
+    compression: true
     schemes: 
       - https
-    metadata: "app=meluccio"
-    compression: true
-    bandwidth_limit:
-      rate: 1000000 # 1MB/s
-    proxy_proto: false
-    bind_tls: true
+    metadata: "service=websocket"
+    # Ottimizzazioni WebSocket
+    proxy_proto: ""  # Disabilita proxy protocol
+    bind_tls: true   # Forza HTTPS
