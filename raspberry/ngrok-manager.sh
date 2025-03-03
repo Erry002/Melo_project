@@ -69,10 +69,12 @@ start_tunnel() {
     fi
     
     # Ferma tunnel esistenti
+    pm2 stop ngrok
     pkill -f ngrok
     
-    # Avvia tunnel
-    ngrok start --all --config $CONFIG_DIR/ngrok.yml &
+    # Avvia tunnel con PM2
+    cd $PROJECT_DIR/raspberry
+    pm2 start ecosystem.config.js
     
     # Attendi che i tunnel siano pronti
     echo -e "${YELLOW}⏳ Attendi l'avvio dei tunnel...${NC}"
@@ -114,6 +116,7 @@ EOF
 # Ferma tunnel
 stop_tunnel() {
     echo -e "\n${BLUE}🛑 Arresto tunnel...${NC}"
+    pm2 stop ngrok
     pkill -f ngrok
     echo -e "${GREEN}✅ Tunnel arrestati${NC}"
 }

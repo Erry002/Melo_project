@@ -12,8 +12,10 @@ module.exports = {
     }
   },
   {
-    name: 'ngrok-manager',
-    script: './ngrok-manager.sh',
+    name: 'ngrok',
+    script: '/usr/local/bin/ngrok',
+    args: ['start', '--all', '--config', '/home/erry002/.config/ngrok/ngrok.yml'],
+    interpreter: 'none',
     cwd: __dirname,
     autorestart: true,
     watch: false

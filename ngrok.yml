@@ -1,0 +1,17 @@
+version: "2"
+console_ui: false
+web_addr: localhost:4040
+region: eu
+log_level: warn
+log_format: json
+authtoken: 2tJfHymP1WlMaZqFVhm5WfsCCsl_7TvuiV4H7Z5BNXaRqvRiW
+
+tunnels:
+  meluccio:
+    addr: 3001
+    proto: http
+    inspect: false
+    schemes: 
+      - https
+    metadata: "app=meluccio"
+    compression: true

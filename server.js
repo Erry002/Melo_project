@@ -96,11 +96,36 @@ app.get('/health', (req, res) => {
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // Permetti richieste senza origin (es. WebSocket)
+      if (!origin) return callback(null, true);
+      
+      // Controlla se l'origin è permesso
+      const isAllowed = allowedOrigins.some(allowed => {
+        if (allowed.includes('*')) {
+          const pattern = new RegExp(allowed.replace('*', '.*'));
+          return pattern.test(origin);
+        }
+        return allowed === origin;
+      });
+      
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        log(LOG_LEVELS.WARN, `Origin non permesso: ${origin}`);
+        callback(new Error('Origin non permesso'));
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ["websocket", "polling"]
+  transports: ["websocket", "polling"],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  allowUpgrades: true,
+  perMessageDeflate: false
 });
 
 io.engine.on("connection_error", (err) => {
@@ -119,7 +144,7 @@ const setupExampleServer = () => {
 
   servers.set(exampleServerId, {
     id: exampleServerId,
-    name: "Esempio Server",
+    name: "Esempio di un Meluccio Server",
     channels
   });
 };

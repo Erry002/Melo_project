@@ -1,0 +1,11 @@
+
+> meluccio-frontend@0.0.0 dev
+> vite
+
+
+  VITE v6.1.0  ready in 170 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://172.20.10.2:5173/
+  ➜  Network: http://172.20.10.7:5173/
+  ➜  Network: http://169.254.109.107:5173/

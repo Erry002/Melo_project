@@ -28,24 +28,47 @@ show_menu() {
 show_status() {
     clear
     echo -e "${BLUE}📊 Stato Servizi${NC}\n"
-    
+
+    # Controlla stato server Node.js
     echo -e "🖥️  Server Node.js:"
-    systemctl is-active meluccio &>/dev/null && \
-        echo -e "   ${GREEN}✓ Attivo${NC}" || \
+    if pm2 list | grep -q "meluccio.*online"; then
+        echo -e "   ${GREEN}✓ Attivo${NC}"
+    else
         echo -e "   ${RED}✗ Inattivo${NC}"
-    
-    echo -e "\n🌐 Nginx:"
-    systemctl is-active nginx &>/dev/null && \
-        echo -e "   ${GREEN}✓ Attivo${NC}" || \
+    fi
+
+    echo -e "\n🌐 Ngrok:"
+    if pm2 list | grep -q "ngrok.*online"; then
+        echo -e "   ${GREEN}✓ Attivo${NC}"
+        # Controlla gli URL di Ngrok
+        if curl -s http://localhost:4040/api/tunnels | grep -q "public_url"; then
+            echo -e "   ${GREEN}✓ Tunnel attivi${NC}"
+            # Mostra gli URL
+            echo -e "\n   🔗 URL disponibili:"
+            curl -s http://localhost:4040/api/tunnels | grep -o '"public_url":"[^"]*"' | cut -d'"' -f4 | while read url; do
+                echo -e "   ${BLUE}$url${NC}"
+            done
+        else
+            echo -e "   ${RED}✗ Tunnel inattivi${NC}"
+        fi
+    else
         echo -e "   ${RED}✗ Inattivo${NC}"
-    
+    fi
+
+    # Mostra utilizzo memoria
     echo -e "\n💾 Utilizzo memoria:"
-    free -h | grep "Mem" | awk '{print "   Usata: "$3" / Totale: "$2}'
-    
+    free -h | awk '/^Mem:/ {print "   Usata: " $3 " / Totale: " $2}'
+
+    # Mostra temperatura CPU
     echo -e "\n🌡️  Temperatura CPU:"
-    temp=$(vcgencmd measure_temp | cut -d= -f2)
-    echo -e "   $temp"
-    
+    if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
+        temp=$(cat /sys/class/thermal/thermal_zone0/temp)
+        temp=$(awk "BEGIN {printf \"%.1f\", $temp/1000}")
+        echo -e "   ${temp}'C"
+    else
+        echo -e "   ${RED}Non disponibile${NC}"
+    fi
+
     read -p "Premi Enter per continuare"
 }
 
@@ -63,15 +86,20 @@ manage_services() {
         
         case $service_choice in
             1)
-                sudo systemctl start meluccio nginx
+                echo -e "\n${YELLOW}⏳ Avvio servizi...${NC}"
+                cd ~/Melo_project/raspberry
+                pm2 start ecosystem.config.js
+                pm2 save
                 echo -e "\n${GREEN}✅ Servizi avviati${NC}"
                 ;;
             2)
-                sudo systemctl stop meluccio nginx
+                echo -e "\n${YELLOW}⏳ Arresto servizi...${NC}"
+                pm2 stop all
                 echo -e "\n${GREEN}✅ Servizi fermati${NC}"
                 ;;
             3)
-                sudo systemctl restart meluccio nginx
+                echo -e "\n${YELLOW}⏳ Riavvio servizi...${NC}"
+                pm2 restart all
                 echo -e "\n${GREEN}✅ Servizi riavviati${NC}"
                 ;;
             4)

@@ -31,6 +31,15 @@ optimize_system() {
 start_ngrok() {
     echo -e "${BLUE}🚀 Avvio Ngrok...${NC}"
     
+    # Verifica se ngrok è installato
+    if ! command -v ngrok &> /dev/null; then
+        echo -e "${RED}❌ Ngrok non trovato. Esegui prima install.sh${NC}"
+        exit 1
+    fi
+    
+    # Ferma eventuali istanze di ngrok in esecuzione
+    pkill -f ngrok || true
+    
     # Crea configurazione Ngrok se non esiste
     if [ ! -f "$NGROK_CONFIG" ]; then
         cat > "$NGROK_CONFIG" << EOF
@@ -40,6 +49,7 @@ web_addr: localhost:4040
 region: eu
 log_level: warn
 log_format: json
+authtoken: 2tJfHymP1WlMaZqFVhm5WfsCCsl_7TvuiV4H7Z5BNXaRqvRiW
 
 tunnels:
   meluccio:
@@ -55,7 +65,7 @@ EOF
     
     if [ -f "$CACHE_FILE" ]; then
         CACHED_URL=$(cat "$CACHE_FILE")
-        CACHED_TIME=$(stat -c %Y "$CACHE_FILE")
+        CACHED_TIME=$(stat -c %Y "$CACHE_FILE" 2>/dev/null || stat -f %m "$CACHE_FILE")
         CURRENT_TIME=$(date +%s)
         
         if [ $((CURRENT_TIME - CACHED_TIME)) -lt 7200 ]; then
@@ -68,9 +78,12 @@ EOF
     for ((i=1; i<=MAX_RETRIES; i++)); do
         echo -e "${BLUE}🔄 Tentativo $i di $MAX_RETRIES${NC}"
         
+        # Avvia ngrok in background
         ngrok start --config="$NGROK_CONFIG" meluccio > "$LOG_DIR/ngrok.log" 2>&1 &
         NGROK_PID=$!
+        echo $NGROK_PID > "$LOG_DIR/ngrok.pid"
         
+        echo -e "${YELLOW}⏳ Attendo avvio tunnel...${NC}"
         for ((t=1; t<=TIMEOUT; t++)); do
             sleep 1
             if curl -s localhost:4040/api/tunnels | grep -q "https://"; then
@@ -79,15 +92,25 @@ EOF
                 echo -e "${GREEN}✅ Ngrok avviato: $URL${NC}"
                 return 0
             fi
-            echo -n "."
+            if [ $((t % 10)) -eq 0 ]; then
+                echo -e "${YELLOW}⏳ Ancora in attesa... ($t/$TIMEOUT secondi)${NC}"
+            else
+                echo -n "."
+            fi
         done
+        
+        echo -e "\n${RED}❌ Timeout, verifico errori...${NC}"
+        if [ -f "$LOG_DIR/ngrok.log" ]; then
+            echo -e "${YELLOW}Ultimi log di Ngrok:${NC}"
+            tail -n 10 "$LOG_DIR/ngrok.log"
+        fi
         
         kill $NGROK_PID 2>/dev/null
         wait $NGROK_PID 2>/dev/null
-        echo -e "\n${RED}❌ Timeout, riprovo...${NC}"
+        sleep 2
     done
     
-    echo -e "${RED}❌ Impossibile avviare Ngrok${NC}"
+    echo -e "${RED}❌ Impossibile avviare Ngrok dopo $MAX_RETRIES tentativi${NC}"
     return 1
 }
 
@@ -105,7 +128,7 @@ start_server() {
     if ! command -v pm2 &> /dev/null; then
         echo -e "${RED}❌ PM2 non trovato. Esegui prima install.sh${NC}"
         exit 1
-    }
+    fi
     
     # Verifica dipendenze
     if [ ! -d "node_modules" ]; then

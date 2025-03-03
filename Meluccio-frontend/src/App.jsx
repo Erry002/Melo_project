@@ -247,7 +247,7 @@ export default function App() {
             placeholder="Username"
             value={username}
             onChange={handleUsernameChange}
-            className="bg-gray-700 px-4 py-2 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-blue-500 px-4 py-2 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-700"
           />
           
           {currentChannel && (
