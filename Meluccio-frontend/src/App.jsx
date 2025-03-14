@@ -5,11 +5,23 @@ import { MicrophoneIcon, SpeakerWaveIcon } from "@heroicons/react/24/solid";
 
 window.global = window;
 
-const SOCKET_URL = "http://172.20.10.2:3001";
+const getServerUrl = async () => {
+  try {
+    const response = await fetch('/config');
+    if (!response.ok) {
+      throw new Error('Errore nel recupero della configurazione del server');
+    }
+    const { websocketUrl } = await response.json();
+    return websocketUrl;
+  } catch (error) {
+    console.error('Errore:', error);
+    throw error;
+  }
+};
 
 export default function App() {
   const [socket, setSocket] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [connectionError, setConnectionError] = useState(null);
   const [servers, setServers] = useState([]);
   const [currentChannel, setCurrentChannel] = useState(null);
@@ -96,25 +108,31 @@ export default function App() {
   useEffect(() => {
     const initializeSocket = async () => {
       try {
-        const socket = io(SOCKET_URL, {
+        const serverUrl = await getServerUrl();
+        console.log('Connessione al server:', serverUrl);
+
+        const socket = io(serverUrl, {
           withCredentials: true,
           transports: ['websocket'],
           extraHeaders: {
-            "Access-Control-Allow-Origin": "http://172.20.10.2:5173"
+            "Access-Control-Allow-Origin": "*"
           }
         });
 
         socket.on("connect", () => {
+          console.log('Connesso al server Socket.io');
           setConnectionStatus('connected');
           setConnectionError(null);
         });
 
-        socket.on("connect_error", async (error) => {
+        socket.on("connect_error", (error) => {
+          console.error('Errore di connessione:', error);
           setConnectionStatus('error');
           setConnectionError(error.message);
         });
 
         socket.on("disconnect", () => {
+          console.log('Disconnesso dal server');
           setConnectionStatus('disconnected');
         });
 
@@ -192,8 +210,9 @@ export default function App() {
           socket.disconnect();
         };
       } catch (error) {
+        console.error('Errore durante l\'inizializzazione:', error);
         setConnectionStatus('error');
-        setConnectionError('Errore durante l\'inizializzazione della connessione');
+        setConnectionError(error.message);
       }
     };
 

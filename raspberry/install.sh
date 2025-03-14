@@ -62,6 +62,7 @@ sudo chmod -R 755 $PROJECT_DIR
 echo -e "\n${BLUE}📦 Installazione dipendenze...${NC}"
 cd $PROJECT_DIR
 npm install --production
+npm install node-fetch
 
 # Verifica dipendenze critiche
 echo -e "\n${BLUE}🔍 Verifica dipendenze critiche...${NC}"
@@ -286,3 +287,25 @@ echo -e "   Network: ${GREEN}http://$(hostname -I | cut -d' ' -f1)${NC}"
 echo -e "\n📊 Monitoraggio:"
 echo -e "   Logs: ${GREEN}$LOGS_DIR/${NC}"
 echo -e "   Status: ${GREEN}pm2 list${NC}"
+
+echo -e "\n${GREEN}✅ Verifica della configurazione...${NC}"
+echo "Controllo connessione al server..."
+curl -s http://localhost:3001/health > /dev/null
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✅ Server operativo${NC}"
+else
+    echo -e "${RED}❌ Server non raggiungibile${NC}"
+fi
+
+echo "Controllo tunnel ngrok..."
+curl -s http://localhost:4040/api/tunnels > /dev/null
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✅ Tunnel ngrok attivo${NC}"
+else
+    echo -e "${RED}❌ Tunnel ngrok non attivo${NC}"
+fi
+
+echo -e "\n${GREEN}✅ Installazione completata!${NC}"
+echo -e "Per avviare il server: ${GREEN}pm2 start meluccio${NC}"
+echo -e "Per visualizzare i log: ${GREEN}pm2 logs meluccio${NC}"
+echo -e "Per ottenere l'URL di ngrok: ${GREEN}curl http://localhost:4040/api/tunnels${NC}"

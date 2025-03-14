@@ -4,6 +4,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const { v4: uuidv4 } = require("uuid");
 const path = require('path');
+import fetch from 'node-fetch';
 
 const app = express();
 
@@ -93,16 +94,61 @@ app.get('/health', (req, res) => {
   res.json(health);
 });
 
+// Funzione per ottenere gli URL di ngrok
+async function getNgrokUrls() {
+  try {
+    const response = await fetch('http://localhost:4040/api/tunnels');
+    const data = await response.json();
+    return data.tunnels.reduce((urls, tunnel) => {
+      urls[tunnel.name] = tunnel.public_url;
+      return urls;
+    }, {});
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, 'Errore nel recupero URL ngrok:', error);
+    return {};
+  }
+}
+
+// Endpoint per ottenere la configurazione
+app.get('/config', async (req, res) => {
+  try {
+    const urls = await getNgrokUrls();
+    res.json({ 
+      websocketUrl: urls.websocket,
+      webUrl: urls.web 
+    });
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, 'Errore nel recupero configurazione:', error);
+    res.status(500).json({ error: 'Errore nel recupero configurazione' });
+  }
+});
+
 const httpServer = createServer(app);
 
 // Configurazione ottimizzata per Raspberry Pi 3B+
 const io = new Server(httpServer, {
   cors: {
-    origin: [
-      "http://172.20.10.2:5173",
-      "http://localhost:5173",
-      "http://127.0.0.1:5173"
-    ],
+    origin: async (origin, callback) => {
+      try {
+        const urls = await getNgrokUrls();
+        const allowedOrigins = [
+          urls.web,
+          urls.websocket,
+          'http://localhost:5173',
+          'http://localhost:3001'
+        ].filter(Boolean);
+
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          log(LOG_LEVELS.WARN, `Origin non permesso: ${origin}`);
+          callback(new Error('Origin non permesso'));
+        }
+      } catch (error) {
+        log(LOG_LEVELS.ERROR, 'Errore nella verifica origin:', error);
+        callback(error);
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true
   },
