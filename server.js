@@ -72,10 +72,32 @@ app.use((err, req, res, next) => {
   res.status(500).send('Internal Server Error');
 });
 
-// Servi i file statici dalla cartella dist
+// API endpoints prima del serve statico
+app.get('/health', (req, res) => {
+  const health = {
+    uptime: process.uptime(),
+    status: 'OK',
+    timestamp: new Date()
+  };
+  res.json(health);
+});
+
+app.get('/config', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:4040/api/tunnels');
+    const data = await response.json();
+    const websocketUrl = data.tunnels.find(t => t.name === 'websocket')?.public_url;
+    res.json({ websocketUrl });
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, 'Errore nel recupero configurazione:', error);
+    res.status(500).json({ error: 'Errore nel recupero configurazione' });
+  }
+});
+
+// Serve statico del frontend DOPO gli endpoint API
 app.use(express.static(path.join(__dirname, 'Meluccio-frontend/dist')));
 
-// Route per tutte le altre richieste
+// Tutte le altre route al frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'Meluccio-frontend/dist/index.html'));
 });
@@ -107,20 +129,6 @@ async function getNgrokUrls() {
     return {};
   }
 }
-
-// Endpoint per ottenere la configurazione
-app.get('/config', async (req, res) => {
-  try {
-    const urls = await getNgrokUrls();
-    res.json({ 
-      websocketUrl: urls.websocket,
-      webUrl: urls.web 
-    });
-  } catch (error) {
-    log(LOG_LEVELS.ERROR, 'Errore nel recupero configurazione:', error);
-    res.status(500).json({ error: 'Errore nel recupero configurazione' });
-  }
-});
 
 const httpServer = createServer(app);
 
