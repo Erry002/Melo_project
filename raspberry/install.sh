@@ -58,11 +58,10 @@ echo -e "\n${BLUE}🔍 Verifica permessi...${NC}"
 sudo chown -R erry002:erry002 $PROJECT_DIR
 sudo chmod -R 755 $PROJECT_DIR
 
-# Installa dipendenze
-echo -e "\n${BLUE}📦 Installazione dipendenze...${NC}"
-cd $PROJECT_DIR
-npm install --production
-npm install node-fetch
+# Installazione delle dipendenze del server
+echo -e "${GREEN}📦 Installazione dipendenze del server...${NC}"
+cd "$PROJECT_DIR"
+npm install
 
 # Verifica dipendenze critiche
 echo -e "\n${BLUE}🔍 Verifica dipendenze critiche...${NC}"
