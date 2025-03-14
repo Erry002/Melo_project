@@ -4,7 +4,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const { v4: uuidv4 } = require("uuid");
 const path = require('path');
-import fetch from 'node-fetch';
+const fetch = require('node-fetch');
 
 const app = express();
 
