@@ -1,12 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { io } from "socket.io-client";
 import SimplePeer from 'simple-peer';
-import { findBestUrl, handleReconnection } from './utils/connection';
 import { MicrophoneIcon, SpeakerWaveIcon } from "@heroicons/react/24/solid";
 
 window.global = window;
 
-const SOCKET_URL = "https://0faa-95-247-188-40.ngrok-free.app";
+const SOCKET_URL = "http://172.20.10.2:3001";
 
 export default function App() {
   const [socket, setSocket] = useState(null);
@@ -21,6 +20,7 @@ export default function App() {
   const [localStream, setLocalStream] = useState(null);
   const [isVoiceConnected, setIsVoiceConnected] = useState(false);
   const [users, setUsers] = useState([]);
+  const [audioElements, setAudioElements] = useState(new Map());
 
   const createPeer = useCallback(async (targetPeerId, initiator = false) => {
     if (!localStream) return;
@@ -31,8 +31,8 @@ export default function App() {
       trickle: false,
       config: { 
         iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' }
+          { urls: 'stun:stun.l.google.com:19302' }
+          // Ridotto a un solo server STUN per diminuire il carico
         ]
       }
     });
@@ -45,6 +45,19 @@ export default function App() {
       const audio = new Audio();
       audio.srcObject = stream;
       audio.play().catch(console.error);
+      
+      setAudioElements(prev => new Map(prev).set(targetPeerId, audio));
+    });
+
+    // Aggiungi gestione errori
+    peer.on('error', err => {
+      console.error('Peer error:', err);
+      // Riprova la connessione solo se necessario, non automaticamente
+    });
+    
+    // Pulizia esplicita quando la connessione viene chiusa
+    peer.on('close', () => {
+      // Libera risorse
     });
 
     return peer;
@@ -83,64 +96,51 @@ export default function App() {
   useEffect(() => {
     const initializeSocket = async () => {
       try {
-        const bestUrl = await findBestUrl();
-        
-        const newSocket = io(bestUrl, {
-          transports: ["websocket", "polling"],
+        const socket = io(SOCKET_URL, {
           withCredentials: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 1000,
+          transports: ['websocket'],
           extraHeaders: {
-            "ngrok-skip-browser-warning": "true"
+            "Access-Control-Allow-Origin": "http://172.20.10.2:5173"
           }
         });
 
-        newSocket.on("connect", () => {
+        socket.on("connect", () => {
           setConnectionStatus('connected');
           setConnectionError(null);
         });
 
-        newSocket.on("connect_error", async (error) => {
+        socket.on("connect_error", async (error) => {
           setConnectionStatus('error');
           setConnectionError(error.message);
-
-          try {
-            const newUrl = await handleReconnection(newSocket);
-            console.log(`Riconnesso con successo usando: ${newUrl}`);
-            setConnectionStatus('connected');
-            setConnectionError(null);
-          } catch (reconnectError) {
-            setConnectionError('Impossibile stabilire una connessione. Riprova più tardi.');
-          }
         });
 
-        newSocket.on("disconnect", () => {
+        socket.on("disconnect", () => {
           setConnectionStatus('disconnected');
         });
 
-        newSocket.on("connect_error", (err) => {
+        socket.on("connect_error", (err) => {
           console.log("Errore di connessione:", err.message);
-          console.log("Stato socket:", newSocket.connected);
+          console.log("Stato socket:", socket.connected);
         });
 
-        newSocket.on("serverList", (data) => {
+        socket.on("serverList", (data) => {
           setServers(data);
         });
 
-        newSocket.on("newMessage", (msg) => {
+        socket.on("newMessage", (msg) => {
           setMessages(prev => [...prev, msg]);
         });
 
-        newSocket.on("userUpdate", ({ users }) => {
+        socket.on("userUpdate", ({ users }) => {
           setUsers(users);
         });
 
-        newSocket.on('userList', (userList) => {
+        socket.on('userList', (userList) => {
           console.log('Users online:', userList);
           setUsers(userList);
         });
 
-        newSocket.on('userJoinedVoice', async ({ peerId, username }) => {
+        socket.on('userJoinedVoice', async ({ peerId, username }) => {
           console.log(`${username} joined voice chat`);
           const peer = await createPeer(peerId, true);
           if (peer) {
@@ -148,16 +148,28 @@ export default function App() {
           }
         });
 
-        newSocket.on('userLeftVoice', ({ peerId }) => {
+        socket.on('userLeftVoice', ({ peerId }) => {
           setPeers(prev => {
             const newPeers = new Map(prev);
             newPeers.get(peerId)?.destroy();
             newPeers.delete(peerId);
             return newPeers;
           });
+          
+          // Pulisci anche l'elemento audio
+          setAudioElements(prev => {
+            const newAudioElements = new Map(prev);
+            if (newAudioElements.has(peerId)) {
+              const audio = newAudioElements.get(peerId);
+              audio.srcObject = null;
+              audio.pause();
+              newAudioElements.delete(peerId);
+            }
+            return newAudioElements;
+          });
         });
 
-        newSocket.on('voiceSignal', async ({ signal, peerId, username }) => {
+        socket.on('voiceSignal', async ({ signal, peerId, username }) => {
           let peer = peers.get(peerId);
           
           if (!peer) {
@@ -174,10 +186,10 @@ export default function App() {
           }
         });
 
-        setSocket(newSocket);
+        setSocket(socket);
 
         return () => {
-          newSocket.disconnect();
+          socket.disconnect();
         };
       } catch (error) {
         setConnectionStatus('error');
@@ -210,13 +222,13 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white">
-      <div className="w-64 bg-gray-800 p-4 overflow-y-auto">
+    <div className="flex flex-col sm:flex-row h-screen bg-gray-900 text-white">
+      <div className="w-full sm:w-64  bg-gray-800 p-4 overflow-y-auto">
         <h1 className="text-xl font-bold mb-4">Server</h1>
         {servers.map(server => (
           <div key={server.id} className="mb-4">
             <h2 className="font-semibold text-gray-400">{server.name}</h2>
-            <div className="ml-2 mt-2">
+            <div className="ml-2 mt-2 flex sm:flex-col">
               {server.channels?.map(channel => (
                 <button
                   key={channel.id}
@@ -241,19 +253,19 @@ export default function App() {
       </div>
 
       <div className="flex-1 flex flex-col">
-        <div className="p-4 bg-gray-800 flex items-center gap-4">
+        <div className="p-4 bg-gray-800 flex flex-col sm:flex-row  gap-4">
           <input
             type="text"
             placeholder="Username"
             value={username}
             onChange={handleUsernameChange}
-            className="bg-blue-500 px-4 py-2 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-700"
+            className="bg-blue-500 items-center w-44 sm:w-64 px-4 py-2 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-700"
           />
           
           {currentChannel && (
             <button
               onClick={startVoiceChat}
-              className={`flex items-center gap-2 px-4 py-2 ${
+              className={`flex items-center w-44  gap-2 px-4 py-2 ${
                 isVoiceConnected ? 'bg-red-600' : 'bg-green-600'
               } rounded-lg hover:opacity-90 transition-colors`}
             >
@@ -262,7 +274,7 @@ export default function App() {
             </button>
           )}
 
-          <div className="ml-auto flex items-center gap-2 text-gray-400">
+          <div className="sm:ml-auto flex items-center gap-2 text-gray-400">
             <SpeakerWaveIcon className="h-5 w-5" />
             <span>{users.length} utenti online</span>
           </div>

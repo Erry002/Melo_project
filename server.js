@@ -94,37 +94,25 @@ app.get('/health', (req, res) => {
 });
 
 const httpServer = createServer(app);
+
+// Configurazione ottimizzata per Raspberry Pi 3B+
 const io = new Server(httpServer, {
   cors: {
-    origin: (origin, callback) => {
-      // Permetti richieste senza origin (es. WebSocket)
-      if (!origin) return callback(null, true);
-      
-      // Controlla se l'origin è permesso
-      const isAllowed = allowedOrigins.some(allowed => {
-        if (allowed.includes('*')) {
-          const pattern = new RegExp(allowed.replace('*', '.*'));
-          return pattern.test(origin);
-        }
-        return allowed === origin;
-      });
-      
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        log(LOG_LEVELS.WARN, `Origin non permesso: ${origin}`);
-        callback(new Error('Origin non permesso'));
-      }
-    },
+    origin: [
+      "http://172.20.10.2:5173",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173"
+    ],
     methods: ["GET", "POST"],
     credentials: true
   },
   transports: ["websocket", "polling"],
-  allowEIO3: true,
   pingTimeout: 60000,
   pingInterval: 25000,
-  upgradeTimeout: 30000,
+  // Ridurre il timeout di upgrade per liberare risorse
+  upgradeTimeout: 15000,
   allowUpgrades: true,
+  // Disabilita la compressione che consuma CPU
   perMessageDeflate: false
 });
 
@@ -150,6 +138,12 @@ const setupExampleServer = () => {
 };
 
 setupExampleServer();
+
+// Middleware per gestire l'origin
+io.use((socket, next) => {
+  socket.request.headers.origin = socket.request.headers.origin || socket.handshake.headers.origin;
+  next();
+});
 
 // Gestione WebSocket
 io.on("connection", (socket) => {
@@ -266,6 +260,14 @@ io.on("connection", (socket) => {
     });
   });
 });
+
+// Gestione pulizia memoria
+setInterval(() => {
+  if (global.gc) {
+    global.gc();
+    log(LOG_LEVELS.DEBUG, 'Garbage collection eseguita');
+  }
+}, 30 * 60 * 1000); // Ogni 30 minuti
 
 httpServer.listen(3001, '0.0.0.0', () => {
   console.log("🚀 Server ready on port 3001");

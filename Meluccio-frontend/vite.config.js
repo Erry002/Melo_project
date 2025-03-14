@@ -20,7 +20,7 @@ export default defineConfig({
     sourcemap: false,
   },
   server: {
-    host: true,
+    host: '0.0.0.0',
     port: 5173,
     proxy: {
       '/socket.io': {
