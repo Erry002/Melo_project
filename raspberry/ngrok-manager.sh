@@ -68,24 +68,39 @@ start_tunnel() {
         configure_ngrok
     fi
     
-    # Ferma tunnel esistenti
-    if pm2 pid ngrok > /dev/null 2>&1; then
-        echo -e "${YELLOW}⚠️ Arresto tunnel esistenti...${NC}"
-        pm2 stop ngrok
+    # Ferma eventuali processi ngrok esistenti
+    if pgrep -f ngrok > /dev/null; then
+        echo -e "${YELLOW}⚠️ Arresto processi ngrok esistenti...${NC}"
+        pkill -f ngrok
+        sleep 2
     fi
-    pkill -f ngrok
     
     # Avvia tunnel con PM2
     cd $PROJECT_DIR/raspberry
+    if [ ! -f "ecosystem.config.js" ]; then
+        echo -e "${RED}❌ File ecosystem.config.js non trovato in $(pwd)${NC}"
+        exit 1
+    fi
+    
     echo -e "${YELLOW}⏳ Avvio nuovo tunnel...${NC}"
-    pm2 start ecosystem.config.js --only ngrok
+    pm2 start ecosystem.config.js --only ngrok || {
+        echo -e "${RED}❌ Errore nell'avvio di ngrok con PM2${NC}"
+        exit 1
+    }
     
     # Attendi che i tunnel siano pronti
     echo -e "${YELLOW}⏳ Attendi l'avvio dei tunnel...${NC}"
-    sleep 5
+    for i in {1..10}; do
+        if curl -s http://localhost:4040/api/tunnels > /dev/null; then
+            echo -e "${GREEN}✅ Tunnel avviati con successo${NC}"
+            show_urls
+            return 0
+        fi
+        sleep 1
+    done
     
-    # Mostra URL
-    show_urls
+    echo -e "${RED}❌ Timeout nell'attesa dei tunnel${NC}"
+    return 1
 }
 
 # Mostra URL
@@ -121,17 +136,24 @@ EOF
 stop_tunnel() {
     echo -e "\n${BLUE}🛑 Arresto tunnel...${NC}"
     
+    local tunnel_stopped=false
+    
+    # Prova a fermare con PM2
     if pm2 pid ngrok > /dev/null 2>&1; then
-        pm2 stop ngrok
-        echo -e "${GREEN}✅ Tunnel arrestati${NC}"
-    else
-        echo -e "${YELLOW}⚠️ Nessun tunnel attivo in PM2${NC}"
+        pm2 stop ngrok && tunnel_stopped=true
     fi
     
-    # Assicuriamoci che non ci siano processi ngrok residui
+    # Ferma eventuali processi residui
     if pgrep -f ngrok > /dev/null; then
         echo -e "${YELLOW}⚠️ Arresto processi ngrok residui...${NC}"
-        pkill -f ngrok
+        pkill -f ngrok && tunnel_stopped=true
+        sleep 2
+    fi
+    
+    if [ "$tunnel_stopped" = true ]; then
+        echo -e "${GREEN}✅ Tunnel arrestati con successo${NC}"
+    else
+        echo -e "${YELLOW}⚠️ Nessun tunnel attivo trovato${NC}"
     fi
 }
 
