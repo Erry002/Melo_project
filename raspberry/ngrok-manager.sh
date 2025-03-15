@@ -69,12 +69,16 @@ start_tunnel() {
     fi
     
     # Ferma tunnel esistenti
-    pm2 stop ngrok
+    if pm2 pid ngrok > /dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️ Arresto tunnel esistenti...${NC}"
+        pm2 stop ngrok
+    fi
     pkill -f ngrok
     
     # Avvia tunnel con PM2
     cd $PROJECT_DIR/raspberry
-    pm2 start ecosystem.config.js
+    echo -e "${YELLOW}⏳ Avvio nuovo tunnel...${NC}"
+    pm2 start ecosystem.config.js --only ngrok
     
     # Attendi che i tunnel siano pronti
     echo -e "${YELLOW}⏳ Attendi l'avvio dei tunnel...${NC}"
@@ -116,9 +120,19 @@ EOF
 # Ferma tunnel
 stop_tunnel() {
     echo -e "\n${BLUE}🛑 Arresto tunnel...${NC}"
-    pm2 stop ngrok
-    pkill -f ngrok
-    echo -e "${GREEN}✅ Tunnel arrestati${NC}"
+    
+    if pm2 pid ngrok > /dev/null 2>&1; then
+        pm2 stop ngrok
+        echo -e "${GREEN}✅ Tunnel arrestati${NC}"
+    else
+        echo -e "${YELLOW}⚠️ Nessun tunnel attivo in PM2${NC}"
+    fi
+    
+    # Assicuriamoci che non ci siano processi ngrok residui
+    if pgrep -f ngrok > /dev/null; then
+        echo -e "${YELLOW}⚠️ Arresto processi ngrok residui...${NC}"
+        pkill -f ngrok
+    fi
 }
 
 # Loop principale
