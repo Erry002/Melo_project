@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { io } from "socket.io-client";
-import SimplePeer from 'simple-peer';
 import { MicrophoneIcon, SpeakerWaveIcon } from "@heroicons/react/24/solid";
+import { useSimpleAudio } from './hooks/useSimpleAudio';
 
 window.global = window;
 
@@ -28,80 +28,43 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [username, setUsername] = useState("");
-  const [peers, setPeers] = useState(new Map());
-  const [localStream, setLocalStream] = useState(null);
-  const [isVoiceConnected, setIsVoiceConnected] = useState(false);
   const [users, setUsers] = useState([]);
-  const [audioElements, setAudioElements] = useState(new Map());
 
-  const createPeer = useCallback(async (targetPeerId, initiator = false) => {
-    if (!localStream) return;
-    
-    const peer = new SimplePeer({
-      initiator,
-      stream: localStream,
-      trickle: false,
-      config: { 
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' }
-          // Ridotto a un solo server STUN per diminuire il carico
-        ]
-      }
-    });
+  // 🎵 NUOVO: Sostituisce tutto il sistema WebRTC con il nostro hook semplificato
+  const { 
+    isRecording, 
+    isConnected, 
+    audioLevel, 
+    connectedUsers,
+    startAudio, 
+    stopAudio 
+  } = useSimpleAudio(socket);
 
-    peer.on('signal', signal => {
-      socket.emit('voiceSignal', { signal, targetPeerId });
-    });
+  // 🗑️ RIMOSSO: Non servono più queste variabili WebRTC complesse
+  // const [peers, setPeers] = useState(new Map());
+  // const [localStream, setLocalStream] = useState(null);
+  // const [isVoiceConnected, setIsVoiceConnected] = useState(false);
+  // const [audioElements, setAudioElements] = useState(new Map());
 
-    peer.on('stream', stream => {
-      const audio = new Audio();
-      audio.srcObject = stream;
-      audio.play().catch(console.error);
-      
-      setAudioElements(prev => new Map(prev).set(targetPeerId, audio));
-    });
-
-    // Aggiungi gestione errori
-    peer.on('error', err => {
-      console.error('Peer error:', err);
-      // Riprova la connessione solo se necessario, non automaticamente
-    });
-    
-    // Pulizia esplicita quando la connessione viene chiusa
-    peer.on('close', () => {
-      // Libera risorse
-    });
-
-    return peer;
-  }, [localStream]);
-
-  const startVoiceChat = async () => {
+  // 🎵 NUOVO: Funzione semplificata per toggle audio
+  const toggleAudio = async () => {
     try {
-      if (isVoiceConnected) {
-        // Disconnetti
-        localStream?.getTracks().forEach(track => track.stop());
-        peers.forEach(peer => peer.destroy());
-        setPeers(new Map());
-        setLocalStream(null);
-        setIsVoiceConnected(false);
-        socket.emit('leaveVoiceChannel', currentChannel);
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { 
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+      if (isRecording) {
+        stopAudio();
+        // Informa il server che hai lasciato la chat audio
+        if (socket && currentChannel) {
+          socket.emit('leave-audio-room', currentChannel);
         }
-      });
-
-      setLocalStream(stream);
-      setIsVoiceConnected(true);
-      socket.emit('joinVoiceChannel', currentChannel);
+      } else {
+        await startAudio();
+        // Informa il server che ti sei unito alla chat audio
+        if (socket && currentChannel) {
+          socket.emit('join-audio-room', currentChannel);
+        }
+      }
     } catch (error) {
-      console.error('Error accessing microphone:', error);
-      alert('Errore accesso microfono: ' + error.message);
+      console.error('Error toggling audio:', error);
+      alert(`Errore audio: ${error.message}`);
     }
   };
 
@@ -158,52 +121,9 @@ export default function App() {
           setUsers(userList);
         });
 
-        socket.on('userJoinedVoice', async ({ peerId, username }) => {
-          console.log(`${username} joined voice chat`);
-          const peer = await createPeer(peerId, true);
-          if (peer) {
-            setPeers(prev => new Map(prev).set(peerId, peer));
-          }
-        });
-
-        socket.on('userLeftVoice', ({ peerId }) => {
-          setPeers(prev => {
-            const newPeers = new Map(prev);
-            newPeers.get(peerId)?.destroy();
-            newPeers.delete(peerId);
-            return newPeers;
-          });
-          
-          // Pulisci anche l'elemento audio
-          setAudioElements(prev => {
-            const newAudioElements = new Map(prev);
-            if (newAudioElements.has(peerId)) {
-              const audio = newAudioElements.get(peerId);
-              audio.srcObject = null;
-              audio.pause();
-              newAudioElements.delete(peerId);
-            }
-            return newAudioElements;
-          });
-        });
-
-        socket.on('voiceSignal', async ({ signal, peerId, username }) => {
-          let peer = peers.get(peerId);
-          
-          if (!peer) {
-            peer = await createPeer(peerId, false);
-            if (peer) {
-              setPeers(prev => new Map(prev).set(peerId, peer));
-            }
-          }
-
-          try {
-            peer?.signal(signal);
-          } catch (error) {
-            console.error('Error signaling peer:', error);
-          }
-        });
-
+        // 🗑️ RIMOSSO: Vecchi listener WebRTC sostituiti dal nuovo sistema
+        // Ora la gestione audio è centralizzata nel hook useSimpleAudio
+        
         setSocket(socket);
 
         return () => {
@@ -282,20 +202,46 @@ export default function App() {
           />
           
           {currentChannel && (
-            <button
-              onClick={startVoiceChat}
-              className={`flex items-center w-44  gap-2 px-4 py-2 ${
-                isVoiceConnected ? 'bg-red-600' : 'bg-green-600'
-              } rounded-lg hover:opacity-90 transition-colors`}
-            >
-              <MicrophoneIcon className="h-5 w-5" />
-              {isVoiceConnected ? 'Disconnetti' : 'Connetti'}
-            </button>
+            <div className="flex flex-col gap-2">
+              {/* 🎵 NUOVO: Pulsante audio semplificato */}
+              <button
+                onClick={toggleAudio}
+                disabled={!isConnected}
+                className={`flex items-center w-44 gap-2 px-4 py-2 ${
+                  isRecording ? 'bg-red-600' : 'bg-green-600'
+                } rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <MicrophoneIcon className="h-5 w-5" />
+                {isRecording ? 'Disattiva Audio' : 'Attiva Audio'}
+              </button>
+              
+              {/* 🎵 NUOVO: Indicatore livello audio */}
+              {isRecording && (
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <div className="flex-1 bg-gray-700 rounded h-2 overflow-hidden">
+                    <div 
+                      className="bg-green-500 h-full transition-all duration-100"
+                      style={{ width: `${Math.min(audioLevel * 2, 100)}%` }}
+                    />
+                  </div>
+                  <span>🎤</span>
+                </div>
+              )}
+              
+              {/* 🎵 NUOVO: Lista utenti connessi audio */}
+              {connectedUsers.length > 0 && (
+                <div className="text-xs text-gray-400">
+                  🔊 In chat: {connectedUsers.length} utent{connectedUsers.length === 1 ? 'e' : 'i'}
+                </div>
+              )}
+            </div>
           )}
 
           <div className="sm:ml-auto flex items-center gap-2 text-gray-400">
             <SpeakerWaveIcon className="h-5 w-5" />
             <span>{users.length} utenti online</span>
+            {/* 🎵 NUOVO: Indicatore connessione */}
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
           </div>
         </div>
 
