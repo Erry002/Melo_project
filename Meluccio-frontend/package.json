@@ -1,13 +1,17 @@
 {
   "name": "meluccio-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
+  "description": "🎙️ Frontend React per Melo Project - Chat vocale in tempo reale con Web Audio API",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "clean": "rm -rf node_modules dist",
+    "analyze": "vite-bundle-analyzer",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

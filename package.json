@@ -1,18 +1,68 @@
 {
-  "name": "meluccio",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "melo-project",
+  "version": "2.0.0",
+  "description": "🎙️ Chat vocale in tempo reale di alta qualità simile a TeamSpeak - Audio streaming server-based con Socket.IO e Web Audio API",
+  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "concurrently \"npm run start\" \"cd Meluccio-frontend && npm run dev\"",
+    "install-all": "npm install && cd Meluccio-frontend && npm install",
+    "build": "cd Meluccio-frontend && npm run build",
+    "test": "echo \"Tests coming soon\" && exit 0",
+    "lint": "echo \"Linting coming soon\" && exit 0",
+    "clean": "rm -rf node_modules Meluccio-frontend/node_modules",
+    "raspberry:install": "chmod +x raspberry/install.sh && ./raspberry/install.sh",
+    "raspberry:optimize": "sudo chmod +x raspberry/optimize.sh && sudo ./raspberry/optimize.sh",
+    "raspberry:start": "pm2 start raspberry/ecosystem.config.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "chat",
+    "voip",
+    "teamspeak", 
+    "audio",
+    "realtime",
+    "websocket",
+    "socketio",
+    "web-audio-api",
+    "streaming",
+    "raspberry-pi",
+    "react",
+    "nodejs"
+  ],
+  "author": "Erry002 <erry002@github.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Erry002/Melo_project.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Erry002/Melo_project/issues"
+  },
+  "homepage": "https://github.com/Erry002/Melo_project#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "socket.io": "^4.8.1",
-    "uuid": "^11.0.5"
+    "uuid": "^8.3.2"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "nodemon": "^3.1.9"
+  },
+  "peerDependencies": {
+    "pm2": "^5.4.2"
+  },
+  "config": {
+    "port": 3000,
+    "audio": {
+      "sampleRate": 44100,
+      "bufferSize": 3,
+      "chunkSize": 1024
+    }
   }
 }

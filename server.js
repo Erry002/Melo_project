@@ -5,6 +5,9 @@ const cors = require("cors");
 const { v4: uuidv4 } = require("uuid");
 const path = require('path');
 
+// 🎵 NUOVO: Import del nostro audio manager
+const SimpleAudioManager = require('./SimpleAudioManager');
+
 const app = express();
 
 const allowedOrigins = [
@@ -86,7 +89,8 @@ app.get('/config', async (req, res) => {
   try {
     const response = await fetch('http://localhost:4040/api/tunnels');
     const data = await response.json();
-    const websocketUrl = data.tunnels.find(t => t.name === 'websocket')?.public_url;
+    const websocketTunnel = data.tunnels.find(t => t.name === 'websocket');
+    const websocketUrl = websocketTunnel ? websocketTunnel.public_url : null;
     res.json({ websocketUrl });
   } catch (error) {
     log(LOG_LEVELS.ERROR, 'Errore nel recupero configurazione:', error);
@@ -94,25 +98,42 @@ app.get('/config', async (req, res) => {
   }
 });
 
-// Serve statico del frontend DOPO gli endpoint API
-app.use(express.static(path.join(__dirname, 'Meluccio-frontend/dist')));
-
-// Tutte le altre route al frontend
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'Meluccio-frontend/dist/index.html'));
+// 🎵 NUOVO: Endpoint dedicato per statistiche audio - PRIMA del catch-all
+app.get('/audio-stats', (req, res) => {
+  try {
+    if (!audioManager) {
+      return res.json({ error: 'Audio manager not initialized' });
+    }
+    
+    const stats = audioManager.getStats();
+    res.json(stats);
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, 'Errore nel recupero statistiche audio:', error);
+    res.status(500).json({ error: 'Errore nel recupero statistiche audio' });
+  }
 });
 
-// Health check endpoint
+// Health check endpoint - PRIMA del catch-all
 app.get('/health', (req, res) => {
   const health = {
     uptime: process.uptime(),
     timestamp: Date.now(),
     memory: process.memoryUsage(),
-    connections: io.engine.clientsCount,
-    users: connectedUsers.size
+    connections: io ? io.engine.clientsCount : 0,
+    users: typeof connectedUsers !== 'undefined' ? connectedUsers.size : 0,
+    // 🎵 NUOVO: Aggiungi statistiche audio al health check
+    audio: audioManager ? audioManager.getStats() : { status: 'not initialized' }
   };
   log(LOG_LEVELS.DEBUG, 'Health check', health);
   res.json(health);
+});
+
+// Serve statico del frontend DOPO gli endpoint API
+app.use(express.static(path.join(__dirname, 'Meluccio-frontend/dist')));
+
+// Tutte le altre route al frontend - ULTIMO
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'Meluccio-frontend/dist/index.html'));
 });
 
 // Funzione per ottenere gli URL di ngrok
@@ -175,6 +196,12 @@ io.engine.on("connection_error", (err) => {
 
 const servers = new Map();
 const connectedUsers = new Map();
+let audioManager; // Dichiarazione audio manager
+
+// 🎵 NUOVO: Inizializza l'audio manager
+audioManager = new SimpleAudioManager(io);
+audioManager.startStatsLogging(60000); // Log stats ogni minuto
+console.log('🎵 Audio Manager initialized at startup');
 
 const setupExampleServer = () => {
   const exampleServerId = uuidv4();
@@ -254,10 +281,13 @@ io.on("connection", (socket) => {
     });
     
     // Invia la lista degli utenti già presenti nel canale
-    socket.emit("voiceUsers", channelUsers.map(id => ({
-      peerId: id,
-      username: connectedUsers.get(id)?.username
-    })));
+    socket.emit("voiceUsers", channelUsers.map(id => {
+      const user = connectedUsers.get(id);
+      return {
+        peerId: id,
+        username: user ? user.username : 'Unknown'
+      };
+    }));
   });
 
   socket.on("leaveVoiceChannel", (channelId) => {
@@ -286,6 +316,65 @@ io.on("connection", (socket) => {
     });
   });
 
+  // 🎵 NUOVO: Gestori Audio Streaming
+  socket.on("join-audio-room", (roomId) => {
+    try {
+      audioManager.joinAudioRoom(socket, roomId);
+    } catch (error) {
+      console.error('❌ Error joining audio room:', error);
+      audioManager.handleAudioError(socket, error);
+    }
+  });
+
+  socket.on("leave-audio-room", (roomId) => {
+    try {
+      audioManager.leaveAudioRoom(socket, roomId);
+    } catch (error) {
+      console.error('❌ Error leaving audio room:', error);
+      audioManager.handleAudioError(socket, error);
+    }
+  });
+
+  socket.on("audio-chunk", (audioData) => {
+    try {
+      // Validazione base dell'audio data
+      if (!audioData || audioData.byteLength === 0) {
+        console.warn('⚠️ Received empty audio chunk from', socket.id);
+        return;
+      }
+      
+      audioManager.handleAudioChunk(socket, audioData);
+    } catch (error) {
+      console.error('❌ Error handling audio chunk:', error);
+      audioManager.handleAudioError(socket, error);
+    }
+  });
+
+  socket.on("audio-stream", (audioData) => {
+    try {
+      // Validazione stream audio
+      if (!audioData || !audioData.samples || audioData.samples.length === 0) {
+        console.warn('⚠️ Received empty audio stream from', socket.id);
+        return;
+      }
+      
+      audioManager.handleAudioStream(socket, audioData);
+    } catch (error) {
+      console.error('❌ Error handling audio stream:', error);
+      audioManager.handleAudioError(socket, error);
+    }
+  });
+
+  // 🎵 NUOVO: Endpoint per statistiche audio (debug)
+  socket.on("get-audio-stats", () => {
+    try {
+      const stats = audioManager.getStats();
+      socket.emit("audio-stats", stats);
+    } catch (error) {
+      console.error('❌ Error getting audio stats:', error);
+    }
+  });
+
   socket.on("error", (error) => {
     log(LOG_LEVELS.ERROR, `Errore WebSocket`, {
       id: socket.id,
@@ -300,6 +389,12 @@ io.on("connection", (socket) => {
       reason
     });
     console.log(`❌ Disconnection (${socket.id}): ${reason}`);
+    
+    // 🎵 NUOVO: Cleanup audio quando user si disconnette
+    if (audioManager) {
+      audioManager.handleUserDisconnect(socket);
+    }
+    
     connectedUsers.delete(socket.id);
     sendServerList();
     
