@@ -1,14 +1,22 @@
-const express = require("express");
-const { Server } = require("socket.io");
-const { createServer } = require("http");
-const cors = require("cors");
-const { v4: uuidv4 } = require("uuid");
-const path = require('path');
+import express from "express";
+import { Server } from "socket.io";
+import { createServer } from "node:http";
+import cors from "cors";
+import { v4 as uuidv4 } from "uuid";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // 🎵 NUOVO: Import del nostro audio manager
-const SimpleAudioManager = require('./SimpleAudioManager');
+import SimpleAudioManager from "./SimpleAudioManager.js";
+import apiRoutes from "./api/routes.js";
+import dbManager from "./database/database.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
+
+await dbManager.initialize();
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -17,6 +25,54 @@ const allowedOrigins = [
   "http://localhost",
   "http://127.0.0.1"
 ];
+
+const PRIVATE_NETWORK_PATTERNS = [
+  /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+  /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/,
+  /^192\.168\.\d{1,3}\.\d{1,3}$/,
+  /^169\.254\.\d{1,3}\.\d{1,3}$/,
+  /^\d{1,3}(\.\d{1,3}){3}$/
+];
+
+const wildcardToRegex = (pattern) => {
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escaped.replace(/\\\*/g, '.*')}$`);
+};
+
+const matchesOriginList = (origin, origins) => origins.some((allowed) => {
+  if (!allowed) return false;
+  if (allowed.includes('*')) {
+    return wildcardToRegex(allowed).test(origin);
+  }
+  return allowed === origin;
+});
+
+const isPrivateNetworkHost = (hostname) => PRIVATE_NETWORK_PATTERNS.some((pattern) => pattern.test(hostname));
+
+const isAllowedOrigin = (origin, extraOrigins = []) => {
+  if (!origin) return true;
+
+  const candidates = [...allowedOrigins, ...extraOrigins].filter(Boolean);
+  if (matchesOriginList(origin, candidates)) {
+    return true;
+  }
+
+  try {
+    const { hostname } = new URL(origin);
+    if (
+      hostname === 'localhost'
+      || hostname === '127.0.0.1'
+      || hostname.endsWith('.local')
+      || isPrivateNetworkHost(hostname)
+    ) {
+      return true;
+    }
+  } catch (error) {
+    log(LOG_LEVELS.WARN, 'Origin non valido', { origin, error: error.message });
+  }
+
+  return false;
+};
 
 // Configurazione logging
 const LOG_LEVELS = {
@@ -37,27 +93,21 @@ function log(level, message, data = null) {
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permetti richieste senza origin (es. WebSocket)
-    if (!origin) return callback(null, true);
-    
-    // Controlla se l'origin è permesso
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (allowed.includes('*')) {
-        const pattern = new RegExp(allowed.replace('*', '.*'));
-        return pattern.test(origin);
-      }
-      return allowed === origin;
-    });
-    
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS non permesso'));
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
     }
+
+    log(LOG_LEVELS.WARN, 'CORS non permesso', { origin });
+    return callback(new Error('CORS non permesso'));
   },
   methods: ["GET", "POST"],
   credentials: true
 }));
+
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+app.use("/api", apiRoutes);
 
 // Middleware per logging richieste HTTP
 app.use((req, res, next) => {
@@ -159,19 +209,19 @@ const io = new Server(httpServer, {
     origin: async (origin, callback) => {
       try {
         const urls = await getNgrokUrls();
-        const allowedOrigins = [
+        const dynamicOrigins = [
           urls.web,
           urls.websocket,
           'http://localhost:5173',
           'http://localhost:3001'
         ].filter(Boolean);
 
-        if (!origin || allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          log(LOG_LEVELS.WARN, `Origin non permesso: ${origin}`);
-          callback(new Error('Origin non permesso'));
+        if (isAllowedOrigin(origin, dynamicOrigins)) {
+          return callback(null, true);
         }
+
+        log(LOG_LEVELS.WARN, `Origin non permesso: ${origin}`);
+        return callback(new Error('Origin non permesso'));
       } catch (error) {
         log(LOG_LEVELS.ERROR, 'Errore nella verifica origin:', error);
         callback(error);

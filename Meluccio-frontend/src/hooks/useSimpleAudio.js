@@ -1,5 +1,33 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
+const requestUserMedia = (constraints) => {
+  if (navigator.mediaDevices?.getUserMedia) {
+    return navigator.mediaDevices.getUserMedia(constraints);
+  }
+
+  const legacyGetUserMedia = navigator.getUserMedia
+    || navigator.webkitGetUserMedia
+    || navigator.mozGetUserMedia
+    || navigator.msGetUserMedia;
+
+  if (legacyGetUserMedia) {
+    return new Promise((resolve, reject) => {
+      legacyGetUserMedia.call(navigator, constraints, resolve, reject);
+    });
+  }
+
+  return Promise.reject(new Error('Il dispositivo non supporta la cattura audio.'));
+};
+
+const isSecureForMedia = () => {
+  if (window.isSecureContext) {
+    return true;
+  }
+
+  const hostname = window.location.hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+};
+
 export const useSimpleAudio = (socket) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -18,7 +46,11 @@ export const useSimpleAudio = (socket) => {
       console.log('🎤 Starting audio capture...');
       
       // Richiedi permesso microfono con configurazione ottimizzata
-      const stream = await navigator.mediaDevices.getUserMedia({
+      if (!isSecureForMedia()) {
+        throw new Error('Per usare il microfono da mobile è necessario accedere via HTTPS (es. dominio Ngrok) oppure tramite localhost.');
+      }
+
+      const stream = await requestUserMedia({
         audio: {
           sampleRate: 16000,     // Bassa qualità per iniziare - ottima per Raspberry Pi
           channelCount: 1,       // Mono - dimezza il traffico

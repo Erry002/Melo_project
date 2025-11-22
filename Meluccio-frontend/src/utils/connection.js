@@ -1,20 +1,57 @@
-// Configurazione URLs
-const URLS = {
-  production: window.location.protocol === 'https:' 
-    ? window.location.origin  // Usa l'URL corrente se HTTPS
-    : "http://localhost:3001", // Fallback a localhost
-  development: "http://localhost:3001",
-  fallback: [
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-    "http://localhost:80",
-    "http://127.0.0.1:80"
-  ]
-};
+/* global io */
 
-// Timeout per il controllo della connessione
 const CONNECTION_TIMEOUT = 5000;
 const MAX_RETRIES = 3;
+const DEFAULT_BACKEND_PORT = 3001;
+
+const stripTrailingSlash = (url) => url?.replace(/\/+$/, '') ?? null;
+
+const isPrivateHostname = (hostname) => {
+  if (!hostname) return false;
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname.endsWith('.local')
+    || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname)
+    || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)
+    || /^169\.254\.\d{1,3}\.\d{1,3}$/.test(hostname)
+    || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+};
+
+const inferRuntimeCandidates = () => {
+  const candidates = new Set();
+
+  const envUrl = stripTrailingSlash(import.meta.env.VITE_API_BASE_URL);
+  if (envUrl) {
+    candidates.add(envUrl);
+  }
+
+  try {
+    const { protocol, host, hostname } = window.location;
+
+    if (protocol === 'https:' && host) {
+      candidates.add(stripTrailingSlash(`${protocol}//${host}`));
+    }
+
+    if (hostname && isPrivateHostname(hostname)) {
+      candidates.add(stripTrailingSlash(`http://${hostname}:${DEFAULT_BACKEND_PORT}`));
+      candidates.add(stripTrailingSlash(`http://${hostname}`));
+
+      if (hostname === 'localhost') {
+        candidates.add(stripTrailingSlash(`http://127.0.0.1:${DEFAULT_BACKEND_PORT}`));
+      }
+    }
+  } catch (error) {
+    console.warn('Impossibile determinare dinamicamente la base URL del backend:', error);
+  }
+
+  candidates.add('http://localhost:3001');
+  candidates.add('http://127.0.0.1:3001');
+  candidates.add('http://localhost:80');
+  candidates.add('http://127.0.0.1:80');
+
+  return Array.from(candidates).filter(Boolean);
+};
 
 // Verifica la connessione a un URL
 export const checkConnection = async (url) => {
@@ -35,24 +72,15 @@ export const checkConnection = async (url) => {
 
 // Trova il miglior URL disponibile
 export const findBestUrl = async () => {
-  const isProd = import.meta.env.PROD;
-  const primaryUrl = isProd ? URLS.production : URLS.development;
-  
-  // Prova l'URL primario
-  if (await checkConnection(primaryUrl)) {
-    return primaryUrl;
-  }
-  
-  // Prova gli URL di fallback
-  for (const fallbackUrl of URLS.fallback) {
-    if (await checkConnection(fallbackUrl)) {
-      console.warn(`Usando URL di fallback: ${fallbackUrl}`);
-      return fallbackUrl;
+  const candidates = inferRuntimeCandidates();
+
+  for (const candidate of candidates) {
+    if (await checkConnection(candidate)) {
+      return candidate;
     }
   }
-  
-  // Se nessun URL funziona, ritorna quello primario (gestiremo l'errore dopo)
-  return primaryUrl;
+
+  return candidates[0];
 };
 
 // Gestione riconnessione migliorata

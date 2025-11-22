@@ -19,7 +19,7 @@
   "keywords": [
     "chat",
     "voip",
-    "teamspeak", 
+    "teamspeak",
     "audio",
     "realtime",
     "websocket",
@@ -45,9 +45,14 @@
     "npm": ">=8.0.0"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
     "socket.io": "^4.8.1",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
     "uuid": "^8.3.2"
   },
   "devDependencies": {

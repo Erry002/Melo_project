@@ -269,4 +269,4 @@ class SimpleAudioManager {
   }
 }
 
-module.exports = SimpleAudioManager;
+export default SimpleAudioManager;
