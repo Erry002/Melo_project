@@ -19,6 +19,15 @@ build/
 logs/
 *.log
 
+# Uploads (mantieni solo i file placeholder)
+uploads/**
+!uploads/**/
+!uploads/**/.gitkeep
+
+# Database local
+database/*.db
+database/backups/
+
 # Runtime data
 pids/
 *.pid
