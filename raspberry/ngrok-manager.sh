@@ -42,7 +42,7 @@ configure_ngrok() {
     
     # Configura Ngrok
     mkdir -p $CONFIG_DIR
-    cat > $CONFIG_DIR/ngrok.yml << EOF
+        cat > ${CONFIG_DIR}/ngrok.yml << EOF
 version: "2"
 authtoken: "$token"
 tunnels:
