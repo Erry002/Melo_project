@@ -27,6 +27,35 @@ optimize_system() {
     fi
 }
 
+# Assicura che l'authtoken ngrok sia configurato senza salvarlo nel repo
+ensure_ngrok_auth() {
+    local configured=false
+    local default_configs=("$HOME/.config/ngrok/ngrok.yml" "$HOME/.ngrok2/ngrok.yml")
+
+    if [ -n "$NGROK_AUTHTOKEN" ]; then
+        if ngrok config add-authtoken "$NGROK_AUTHTOKEN" >/dev/null 2>&1; then
+            configured=true
+        else
+            echo -e "${RED}❌ Impossibile registrare l'authtoken Ngrok fornito.${NC}"
+            echo -e "${YELLOW}Verifica il valore della variabile NGROK_AUTHTOKEN e riprova.${NC}"
+            exit 1
+        fi
+    fi
+
+    for cfg in "${default_configs[@]}"; do
+        if [ -f "$cfg" ] && grep -q "authtoken" "$cfg"; then
+            configured=true
+            break
+        fi
+    done
+
+    if [ "$configured" = false ]; then
+        echo -e "${RED}❌ Nessun authtoken Ngrok configurato.${NC}"
+        echo -e "${YELLOW}Esegui 'ngrok config add-authtoken <token>' (puoi esportare NGROK_AUTHTOKEN per automatizzare) e riprova.${NC}"
+        exit 1
+    fi
+}
+
 # Funzione per avviare Ngrok
 start_ngrok() {
     echo -e "${BLUE}🚀 Avvio Ngrok...${NC}"
@@ -36,6 +65,8 @@ start_ngrok() {
         echo -e "${RED}❌ Ngrok non trovato. Esegui prima install.sh${NC}"
         exit 1
     fi
+
+    ensure_ngrok_auth
     
     # Ferma eventuali istanze di ngrok in esecuzione
     pkill -f ngrok || true
@@ -49,7 +80,7 @@ web_addr: localhost:4040
 region: eu
 log_level: warn
 log_format: json
-authtoken: 2tJfHymP1WlMaZqFVhm5WfsCCsl_7TvuiV4H7Z5BNXaRqvRiW
+# L'authtoken viene letto dalla configurazione utente (~/.config/ngrok/ngrok.yml)
 
 tunnels:
   meluccio:
