@@ -14,6 +14,7 @@ const TARGET_SAMPLE_RATE = 16000;
 const MIN_BUFFER_LEAD = 0.12; // 120ms di margine per assorbire jitter
 const CAPTURE_CHUNK_MS = 60;
 const WORKLET_RMS_THRESHOLD = 0.0015;
+const MESSAGE_HISTORY_LIMIT = 200;
 
 const isSecureForMedia = () => {
   if (window.isSecureContext) {
@@ -114,6 +115,8 @@ const AuthenticatedApp = () => {
   const [channelUsers, setChannelUsers] = useState([]);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [chatError, setChatError] = useState('');
+  const [isClearingChat, setIsClearingChat] = useState(false);
   const [socketId, setSocketId] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -443,6 +446,7 @@ const AuthenticatedApp = () => {
     setCurrentChannelId(channelId);
     setChannelUsers([]);
     setMessages([]);
+    setChatError('');
 
     socketRef.current.emit('joinChannel', serverId, channelId, displayNameRef.current);
 
@@ -454,11 +458,20 @@ const AuthenticatedApp = () => {
 
   const sendMessage = useCallback((event) => {
     event?.preventDefault?.();
-    if (!newMessage.trim() || !socketRef.current || !currentChannelIdRef.current) {
+    const trimmed = newMessage.trim();
+    if (!trimmed || !socketRef.current || !currentChannelIdRef.current) {
       return;
     }
 
-    socketRef.current.emit('sendMessage', currentChannelIdRef.current, newMessage.trim());
+    setChatError('');
+    socketRef.current.emit(
+      'sendMessage',
+      {
+        serverId: currentServerIdRef.current,
+        channelId: currentChannelIdRef.current,
+        text: trimmed
+      }
+    );
     setNewMessage('');
   }, [newMessage]);
 
@@ -475,6 +488,29 @@ const AuthenticatedApp = () => {
     }
   }, [connectionStatus]);
 
+  const handleClearChat = useCallback(() => {
+    if (!socketRef.current || !currentChannelIdRef.current) {
+      return;
+    }
+
+    setIsClearingChat(true);
+    setChatError('');
+
+    socketRef.current.emit(
+      'clearChannelMessages',
+      {
+        serverId: currentServerIdRef.current,
+        channelId: currentChannelIdRef.current
+      },
+      (response) => {
+        if (!response?.ok) {
+          setChatError(response?.error || 'Impossibile svuotare la chat.');
+        }
+        setIsClearingChat(false);
+      }
+    );
+  }, []);
+
   const runSidebarAction = useCallback(async (action) => {
     if (typeof action === 'function') {
       await action();
@@ -484,10 +520,148 @@ const AuthenticatedApp = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let socket;
 
     if (!token) {
       return undefined;
     }
+
+    setConnectionStatus('connecting');
+
+    const normalizeMessage = (message) => ({
+      ...message,
+      timestamp: typeof message?.timestamp === 'string'
+        ? new Date(message.timestamp).getTime()
+        : message?.timestamp ?? Date.now()
+    });
+
+    const handleConnect = () => {
+      if (!socket) {
+        return;
+      }
+      setConnectionStatus('connected');
+      setSocketId(socket.id);
+      socket.emit('setUsername', displayNameRef.current);
+    };
+
+    const handleDisconnect = (reason) => {
+      console.warn('Socket disconnesso:', reason);
+      setSocketId(null);
+      setConnectionStatus('disconnected');
+      setServers([]);
+      setChannelUsers([]);
+      setMessages([]);
+      setChatError('');
+      setIsClearingChat(false);
+      stopAudio();
+    };
+
+    const handleServerList = (serverList) => {
+      setServers(serverList);
+      if (!serverList?.length) {
+        return;
+      }
+
+      const preferredServer = serverList.find((srv) => srv.id === currentServerIdRef.current) || serverList[0];
+      const preferredChannel = preferredServer.channels?.find((ch) => ch.id === currentChannelIdRef.current) || preferredServer.channels?.[0];
+
+      if (preferredServer && preferredChannel) {
+        joinChannel(preferredServer.id, preferredChannel.id);
+      }
+    };
+
+    const handleChannelHistory = ({ channelId, serverId, messages: history }) => {
+      if (channelId !== currentChannelIdRef.current || serverId !== currentServerIdRef.current) {
+        return;
+      }
+      setMessages((history || []).map((item) => normalizeMessage(item)).slice(-MESSAGE_HISTORY_LIMIT));
+      setChatError('');
+      setIsClearingChat(false);
+    };
+
+    const handleChatCleared = ({ channelId, serverId }) => {
+      if (channelId !== currentChannelIdRef.current || serverId !== currentServerIdRef.current) {
+        return;
+      }
+      setMessages([]);
+      setChatError('');
+      setIsClearingChat(false);
+    };
+
+    const handleChatError = (payload) => {
+      if (payload?.message) {
+        setChatError(payload.message);
+      }
+      setIsClearingChat(false);
+    };
+
+    const handleNewMessage = (message) => {
+      setMessages((prev) => {
+        const next = [...prev, normalizeMessage(message)];
+        return next.slice(-MESSAGE_HISTORY_LIMIT);
+      });
+    };
+
+    const handleUserUpdate = ({ users }) => {
+      setChannelUsers(users);
+    };
+
+    const handleUserList = (users) => {
+      setChannelUsers(users);
+    };
+
+    const handleAudioError = (payload) => {
+      if (payload?.message) {
+        setAudioError(payload.message);
+      }
+    };
+
+    const handleConnectError = (error) => {
+      console.error('❌ Errore connessione socket:', error);
+      setConnectionStatus('error');
+    };
+
+    const handleReconnectAttempt = () => setConnectionStatus('connecting');
+
+    const registerSocketHandlers = () => {
+      if (!socket) {
+        return;
+      }
+      socket.on('connect', handleConnect);
+      socket.on('disconnect', handleDisconnect);
+      socket.on('serverList', handleServerList);
+      socket.on('channelHistory', handleChannelHistory);
+      socket.on('chatCleared', handleChatCleared);
+      socket.on('chat-error', handleChatError);
+      socket.on('newMessage', handleNewMessage);
+      socket.on('userUpdate', handleUserUpdate);
+      socket.on('userList', handleUserList);
+      socket.on('audio-stream', handleIncomingAudio);
+      socket.on('audio-error', handleAudioError);
+      socket.io?.on('error', handleConnectError);
+      socket.io?.on('reconnect', handleConnect);
+      socket.io?.on('reconnect_attempt', handleReconnectAttempt);
+    };
+
+    const unregisterSocketHandlers = () => {
+      if (!socket) {
+        return;
+      }
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('serverList', handleServerList);
+      socket.off('channelHistory', handleChannelHistory);
+      socket.off('chatCleared', handleChatCleared);
+      socket.off('chat-error', handleChatError);
+      socket.off('newMessage', handleNewMessage);
+      socket.off('userUpdate', handleUserUpdate);
+      socket.off('userList', handleUserList);
+      socket.off('audio-stream', handleIncomingAudio);
+      socket.off('audio-error', handleAudioError);
+      socket.io?.off('error', handleConnectError);
+      socket.io?.off('reconnect', handleConnect);
+      socket.io?.off('reconnect_attempt', handleReconnectAttempt);
+    };
 
     const setupSocket = async () => {
       try {
@@ -496,77 +670,14 @@ const AuthenticatedApp = () => {
           return;
         }
 
-        const socket = io(baseUrl, {
+        socket = io(baseUrl, {
           transports: SOCKET_TRANSPORTS,
           auth: { token },
           withCredentials: true
         });
 
         socketRef.current = socket;
-
-        const handleConnect = () => {
-          setConnectionStatus('connected');
-          setSocketId(socket.id);
-          socket.emit('setUsername', displayNameRef.current);
-        };
-
-        const handleDisconnect = (reason) => {
-          console.warn('Socket disconnesso:', reason);
-          setSocketId(null);
-          setConnectionStatus('disconnected');
-          setServers([]);
-          setChannelUsers([]);
-          stopAudio();
-        };
-
-        const handleServerList = (serverList) => {
-          setServers(serverList);
-          if (!serverList?.length) {
-            return;
-          }
-
-          const preferredServer = serverList.find((srv) => srv.id === currentServerIdRef.current) || serverList[0];
-          const preferredChannel = preferredServer.channels?.find((ch) => ch.id === currentChannelIdRef.current) || preferredServer.channels?.[0];
-
-          if (preferredServer && preferredChannel) {
-            joinChannel(preferredServer.id, preferredChannel.id);
-          }
-        };
-
-        const handleNewMessage = (message) => {
-          setMessages((prev) => [...prev.slice(-99), message]);
-        };
-
-        const handleUserUpdate = ({ users }) => {
-          setChannelUsers(users);
-        };
-
-        const handleUserList = (users) => {
-          setChannelUsers(users);
-        };
-
-        const handleAudioError = (payload) => {
-          if (payload?.message) {
-            setAudioError(payload.message);
-          }
-        };
-
-        const handleConnectError = (error) => {
-          console.error('❌ Errore connessione socket:', error);
-          setConnectionStatus('error');
-        };
-
-        socket.on('connect', handleConnect);
-        socket.on('disconnect', handleDisconnect);
-        socket.on('serverList', handleServerList);
-        socket.on('newMessage', handleNewMessage);
-        socket.on('userUpdate', handleUserUpdate);
-        socket.on('userList', handleUserList);
-        socket.on('audio-stream', handleIncomingAudio);
-        socket.on('audio-error', handleAudioError);
-        socket.io.on('error', handleConnectError);
-        socket.io.on('reconnect', handleConnect);
-        socket.io.on('reconnect_attempt', () => setConnectionStatus('connecting'));
+        registerSocketHandlers();
       } catch (error) {
         console.error('❌ Errore inizializzazione socket:', error);
         setConnectionStatus('error');
@@ -579,9 +690,8 @@ const AuthenticatedApp = () => {
 
     return () => {
       isMounted = false;
-      const socket = socketRef.current;
+      unregisterSocketHandlers();
       if (socket) {
-        socket.off('audio-stream', handleIncomingAudio);
         socket.disconnect();
         socketRef.current = null;
       }
@@ -728,7 +838,7 @@ const AuthenticatedApp = () => {
                       </span>
                     </div>
                     <p className="text-xs text-slate-400">
-                      Gestisci il microfono dalla sezione "Azioni rapide" della sidebar.
+                      Gestisci il microfono dalla sezione Azioni rapide della sidebar.
                     </p>
                     <div className="mt-3 h-12 bg-slate-800/70 rounded-lg flex items-center justify-center">
                       {isRecording ? (
@@ -821,17 +931,44 @@ const AuthenticatedApp = () => {
 
             <main className="order-1 lg:order-2 relative flex flex-col min-h-[70vh] mobile-panel overflow-hidden">
               <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 sticky-mobile-header bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
-                <h2 className="text-lg sm:text-xl font-semibold text-slate-700 flex items-center gap-2">
-                  💬 Conversazione
-                  {currentChannelId && (
-                    <span className="text-xs font-medium px-2 py-1 bg-indigo-100 text-indigo-600 rounded-full">
-                      {currentChannelId}
-                    </span>
-                  )}
-                </h2>
-                <p className="text-sm text-slate-400 mt-1">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-lg sm:text-xl font-semibold text-slate-700 flex items-center gap-2">
+                    💬 Conversazione
+                    {currentChannelId && (
+                      <span className="text-xs font-medium px-2 py-1 bg-indigo-100 text-indigo-600 rounded-full">
+                        {currentChannelId}
+                      </span>
+                    )}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={handleClearChat}
+                    disabled={
+                      isClearingChat
+                      || connectionStatus !== 'connected'
+                      || !currentChannelId
+                      || messages.length === 0
+                    }
+                    aria-busy={isClearingChat}
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                      isClearingChat
+                        ? 'bg-slate-200 text-slate-400 cursor-wait'
+                        : connectionStatus !== 'connected' || !currentChannelId || messages.length === 0
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+                    }`}
+                  >
+                    {isClearingChat ? 'Svuotando…' : '🗑️ Svuota chat'}
+                  </button>
+                </div>
+                <p className="text-sm text-slate-400 mt-2">
                   Chat vocale e testuale in tempo reale con audio streaming.
                 </p>
+                {chatError && (
+                  <p className="mt-2 text-xs text-rose-500">
+                    {chatError}
+                  </p>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto touch-scroll px-4 sm:px-6 py-4 sm:py-6 space-y-4 bg-gradient-to-b from-white to-slate-50">
@@ -842,12 +979,12 @@ const AuthenticatedApp = () => {
                 ) : (
                   messages.map((message) => (
                     <div
-                      key={`${message.timestamp}-${message.user || message.username}`}
+                      key={message.id || `${message.timestamp}-${message.user || message.username}`}
                       className="bg-white shadow-sm border border-slate-100 rounded-2xl px-5 py-4"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-semibold text-indigo-500">
-                          {message.user || message.username}
+                          {message.displayName || message.user || message.username}
                         </span>
                         <span className="text-xs text-slate-400">{formatTime(message.timestamp)}</span>
                       </div>

@@ -78,7 +78,51 @@ class DatabaseManager {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
       );
+
+      CREATE TABLE IF NOT EXISTS servers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS channels (
+        id TEXT PRIMARY KEY,
+        server_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        server_id TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        user_id INTEGER,
+        username TEXT NOT NULL,
+        display_name TEXT,
+        text TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+        FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE
+      );
     `);
+
+    await this.db.run(
+      `INSERT OR IGNORE INTO servers (id, name) VALUES (?, ?)`,
+      ['default-server', 'Melo Server']
+    );
+
+    const defaultChannels = [
+      { id: 'general-channel', name: 'Generale' },
+      { id: 'voice-channel', name: 'Vocale' }
+    ];
+
+    await Promise.all(defaultChannels.map((channel) => (
+      this.db.run(
+        `INSERT OR IGNORE INTO channels (id, server_id, name) VALUES (?, ?, ?)`,
+        [channel.id, 'default-server', channel.name]
+      )
+    )));
   }
 
   async close() {

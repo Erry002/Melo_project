@@ -32,7 +32,7 @@
 ## 📅 CRONOLOGIA SVILUPPO
 
 ### 📱 Sessione 2 Dicembre 2025 - IN CORSO
-**Focus**: Milestone 2 – Ottimizzazione UI/UX mobile (fondamenta responsive)
+**Focus**: Milestone 2 – Ottimizzazione UI/UX mobile e persistenza chat
 
 #### Modifiche principali:
 1. **Layout**: `Meluccio-frontend/src/App.jsx` ora mobile-first con header/footer sticky e toggle sidebar
@@ -41,10 +41,13 @@
 4. **Auth layout**: Pagina di login ridisegnata con hero compatto, toggle segmentato e card mobile-first
 5. **Styling form**: `Meluccio-frontend/src/LoginForm.jsx` e `Meluccio-frontend/src/RegisterForm.jsx` con spacing tipografia ottimizzati per schermi piccoli
 6. **Bugfix**: Toggle microfono unico nella sidebar e cleanup membership canali per prevenire duplicati utenti
+7. **Chat history**: `server.js` e `Meluccio-frontend/src/App.jsx` ora salvano e sincronizzano la cronologia messaggi da database
+8. **Clear chat**: Pulsante "Svuota chat" con feedback stato ed errori lato client via Socket.IO
 
 #### Stato test & note:
 - 🔄 Da verificare comportamento sticky con tastiera mobile aperta
 - 🔄 Valutare bottom nav dedicata dopo review team
+- 🔄 Test end-to-end multi-client per cronologia persistente e comando svuota chat
 
 ### 🔥 **Sessione 1 Settembre 2025 - COMPLETATA**
 **Problema**: Memory leaks e crash con WebRTC P2P
@@ -175,6 +178,9 @@ tail -f logs/server.log
 - `audio-broadcast` - Ricezione dati per playback  
 - `join-audio-room` - Gestione room audio
 - `message` - Chat real-time
+- `channelHistory` - Invio cronologia messaggi persistita
+- `chatCleared` - Notifica svuotamento chat
+- `chat-error` - Eventi errore chat lato client
 
 ### Performance
 - **Raspberry Pi**: 16kHz mono recommended

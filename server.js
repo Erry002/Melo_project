@@ -2,9 +2,9 @@ import express from "express";
 import { Server } from "socket.io";
 import { createServer } from "node:http";
 import cors from "cors";
-import { v4 as uuidv4 } from "uuid";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import jwt from "jsonwebtoken";
 
 // 🎵 NUOVO: Import del nostro audio manager
 import SimpleAudioManager from "./SimpleAudioManager.js";
@@ -15,6 +15,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+const JWT_SECRET = process.env.JWT_SECRET || "MeloChat_Super_Secret_Key_2024";
+const MESSAGE_HISTORY_LIMIT = 200;
 
 await dbManager.initialize();
 
@@ -248,26 +251,72 @@ const servers = new Map();
 const connectedUsers = new Map();
 let audioManager; // Dichiarazione audio manager
 
+const DEFAULT_SERVER_ID = 'default-server';
+const DEFAULT_SERVER_NAME = 'Melo Server';
+const DEFAULT_CHANNELS = [
+  { id: 'general-channel', name: 'Generale' },
+  { id: 'voice-channel', name: 'Vocale' }
+];
+
 // 🎵 NUOVO: Inizializza l'audio manager
 audioManager = new SimpleAudioManager(io);
 audioManager.startStatsLogging(60000); // Log stats ogni minuto
 console.log('🎵 Audio Manager initialized at startup');
 
-const setupExampleServer = () => {
-  const exampleServerId = uuidv4();
-  const channels = new Map([
-    [uuidv4(), { name: "Generale", users: [] }],
-    [uuidv4(), { name: "Vocale", users: [] }]
-  ]);
+const loadServersFromDatabase = async () => {
+  servers.clear();
 
-  servers.set(exampleServerId, {
-    id: exampleServerId,
-    name: "Esempio di un Meluccio Server",
-    channels
-  });
+  const serverRows = await dbManager.db.all(
+    `SELECT id, name FROM servers ORDER BY created_at ASC`
+  );
+
+  let rows = serverRows;
+
+  if (rows.length === 0) {
+    await dbManager.db.run(
+      `INSERT INTO servers (id, name) VALUES (?, ?)`,
+      [DEFAULT_SERVER_ID, DEFAULT_SERVER_NAME]
+    );
+    rows = [{ id: DEFAULT_SERVER_ID, name: DEFAULT_SERVER_NAME }];
+  }
+
+  for (const serverRow of rows) {
+    let channelRows = await dbManager.db.all(
+      `SELECT id, name FROM channels WHERE server_id = ? ORDER BY created_at ASC`,
+      [serverRow.id]
+    );
+
+    if (channelRows.length === 0 && serverRow.id === DEFAULT_SERVER_ID) {
+      await Promise.all(
+        DEFAULT_CHANNELS.map((channel) => dbManager.db.run(
+          `INSERT OR IGNORE INTO channels (id, server_id, name) VALUES (?, ?, ?)`,
+          [channel.id, serverRow.id, channel.name]
+        ))
+      );
+
+      channelRows = await dbManager.db.all(
+        `SELECT id, name FROM channels WHERE server_id = ? ORDER BY created_at ASC`,
+        [serverRow.id]
+      );
+    }
+
+    const channels = new Map();
+    channelRows.forEach((channel) => {
+      channels.set(channel.id, {
+        name: channel.name,
+        users: []
+      });
+    });
+
+    servers.set(serverRow.id, {
+      id: serverRow.id,
+      name: serverRow.name,
+      channels
+    });
+  }
 };
 
-setupExampleServer();
+await loadServersFromDatabase();
 
 // Middleware per gestire l'origin
 io.use((socket, next) => {
@@ -276,109 +325,268 @@ io.use((socket, next) => {
 });
 
 // Gestione WebSocket
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   log(LOG_LEVELS.INFO, `Nuova connessione WebSocket`, {
     id: socket.id,
     address: socket.handshake.address,
     headers: socket.handshake.headers
   });
-  
+
   console.log(`✅ New connection: ${socket.id}`);
 
   const sendServerList = () => {
-    const serverList = Array.from(servers.values()).map(server => ({
-      id: server.id,
+    const serverList = Array.from(servers.entries()).map(([serverId, server]) => ({
+      id: serverId,
       name: server.name,
-      channels: Array.from(server.channels.values()).map(channel => ({
-        id: [...server.channels.keys()].find(key => server.channels.get(key) === channel),
+      channels: Array.from(server.channels.entries()).map(([channelId, channel]) => ({
+        id: channelId,
         name: channel.name
       }))
     }));
     socket.emit("serverList", serverList);
   };
 
+  const broadcastOnlineUsers = () => {
+    io.emit(
+      "userList",
+      Array.from(connectedUsers.values()).map((user) => user.displayName || user.username)
+    );
+  };
+
+  // Prova a risalire all'utente tramite token JWT trasmesso nello handshake
+  const authToken = socket.handshake?.auth?.token;
+  if (authToken) {
+    try {
+      jwt.verify(authToken, JWT_SECRET);
+      const session = await dbManager.db.get(
+        `SELECT s.user_id, u.username, u.display_name
+         FROM user_sessions s
+         JOIN users u ON s.user_id = u.id
+         WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP`,
+        [authToken]
+      );
+
+      if (session) {
+        socket.userId = session.user_id;
+        socket.username = session.username;
+        socket.displayName = session.display_name || session.username;
+        connectedUsers.set(socket.id, {
+          username: socket.username,
+          displayName: socket.displayName,
+          userId: socket.userId
+        });
+      }
+    } catch (error) {
+      log(LOG_LEVELS.WARN, 'Token socket non valido', { error: error.message });
+    }
+  }
+
   sendServerList();
 
+  if (connectedUsers.has(socket.id)) {
+    broadcastOnlineUsers();
+  }
+
   socket.on("setUsername", (username) => {
-    connectedUsers.set(socket.id, { username });
-    io.emit("userList", Array.from(connectedUsers.values()).map(u => u.username));
+    const safeName = typeof username === 'string' && username.trim().length ? username.trim() : `Utente-${socket.id.slice(-4)}`;
+    socket.displayName = safeName;
+    socket.username = safeName;
+    const existing = connectedUsers.get(socket.id) || {};
+    connectedUsers.set(socket.id, {
+      ...existing,
+      username: socket.username,
+      displayName: socket.displayName
+    });
+    broadcastOnlineUsers();
   });
 
-  socket.on("joinChannel", (serverId, channelId, username) => {
+  socket.on("joinChannel", async (serverId, channelId, providedName) => {
     const server = servers.get(serverId);
-    if (!server) return;
+    if (!server) {
+      return;
+    }
 
     const channel = server.channels.get(channelId);
-    if (!channel) return;
+    if (!channel) {
+      return;
+    }
 
-    // Rimuovi l'utente da eventuali canali precedenti (anche su altri server)
+    const effectiveName = providedName?.trim?.() || socket.displayName || socket.username || `Utente-${socket.id.slice(-4)}`;
+
     servers.forEach((srv) => {
       srv.channels.forEach((srvChannel, srvChannelId) => {
-        const existingIndex = srvChannel.users.findIndex((user) => user.id === socket.id);
-        if (existingIndex !== -1) {
-          srvChannel.users.splice(existingIndex, 1);
+        const index = srvChannel.users.findIndex((user) => user.id === socket.id);
+        if (index !== -1) {
+          srvChannel.users.splice(index, 1);
           socket.leave(srvChannelId);
           io.to(srvChannelId).emit("userUpdate", {
-            users: srvChannel.users.map((user) => user.username)
+            users: srvChannel.users.map((user) => user.displayName || user.username)
           });
         }
       });
     });
 
-    socket.username = username;
+    socket.username = effectiveName;
+    socket.displayName = effectiveName;
+    socket.currentServerId = serverId;
+    socket.currentChannelId = channelId;
+
     if (!channel.users.some((user) => user.id === socket.id)) {
-      channel.users.push({ id: socket.id, username });
+      channel.users.push({ id: socket.id, username: socket.username, displayName: socket.displayName });
     }
+
     socket.join(channelId);
 
     io.to(channelId).emit("userUpdate", {
-      users: channel.users.map(u => u.username)
+      users: channel.users.map((user) => user.displayName || user.username)
     });
+
+    try {
+      const historyRows = await dbManager.db.all(
+        `SELECT id, username, display_name, text, created_at
+         FROM messages
+         WHERE server_id = ? AND channel_id = ?
+         ORDER BY created_at ASC
+         LIMIT ?`,
+        [serverId, channelId, MESSAGE_HISTORY_LIMIT]
+      );
+
+      socket.emit("channelHistory", {
+        serverId,
+        channelId,
+        messages: historyRows.map((row) => ({
+          id: row.id,
+          username: row.username,
+          user: row.display_name || row.username,
+          displayName: row.display_name || row.username,
+          text: row.text,
+          timestamp: row.created_at ? new Date(row.created_at).getTime() : Date.now()
+        }))
+      });
+    } catch (error) {
+      log(LOG_LEVELS.ERROR, 'Errore caricamento cronologia canale', { error: error.message, serverId, channelId });
+      socket.emit("channelHistory", {
+        serverId,
+        channelId,
+        messages: []
+      });
+    }
   });
 
   socket.on("joinVoiceChannel", (channelId) => {
     const channelUsers = Array.from(io.sockets.adapter.rooms.get(channelId) || []);
     socket.join(`voice-${channelId}`);
-    
-    // Notifica gli altri utenti nel canale
+
+    const displayName = socket.displayName || socket.username || 'Unknown';
+
     socket.to(`voice-${channelId}`).emit("userJoinedVoice", {
       peerId: socket.id,
-      username: socket.username
+      username: displayName
     });
-    
-    // Invia la lista degli utenti già presenti nel canale
-    socket.emit("voiceUsers", channelUsers.map(id => {
+
+    socket.emit("voiceUsers", channelUsers.map((id) => {
       const user = connectedUsers.get(id);
       return {
         peerId: id,
-        username: user ? user.username : 'Unknown'
+        username: user ? (user.displayName || user.username) : 'Unknown'
       };
     }));
   });
 
   socket.on("leaveVoiceChannel", (channelId) => {
     socket.leave(`voice-${channelId}`);
+    const displayName = socket.displayName || socket.username || 'Unknown';
     io.to(`voice-${channelId}`).emit("userLeftVoice", {
       peerId: socket.id,
-      username: socket.username
+      username: displayName
     });
   });
 
-  socket.on("sendMessage", (channelId, message) => {
-    if (!socket.username || !message.trim()) return;
+  socket.on("sendMessage", async (payload, legacyMessage) => {
+    try {
+      let serverId = socket.currentServerId;
+      let channelId;
+      let messageText;
 
-    io.to(channelId).emit("newMessage", {
-      user: socket.username,
-      text: message,
-      timestamp: Date.now()
-    });
+      if (payload && typeof payload === 'object') {
+        serverId = payload.serverId || socket.currentServerId;
+        channelId = payload.channelId;
+        messageText = payload.text;
+      } else {
+        channelId = payload;
+        messageText = legacyMessage;
+      }
+
+      const trimmed = typeof messageText === 'string' ? messageText.trim() : '';
+      if (!channelId || !trimmed) {
+        return;
+      }
+
+      if (!serverId || !servers.get(serverId)?.channels.has(channelId)) {
+        return;
+      }
+
+      const timestamp = Date.now();
+      const displayName = socket.displayName || socket.username || 'Utente';
+
+      const result = await dbManager.db.run(
+        `INSERT INTO messages (server_id, channel_id, user_id, username, display_name, text, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          serverId,
+          channelId,
+          socket.userId || null,
+          socket.username || displayName,
+          displayName,
+          trimmed,
+          new Date(timestamp).toISOString()
+        ]
+      );
+
+      const messagePayload = {
+        id: result.lastID,
+        user: displayName,
+        username: socket.username || displayName,
+        displayName,
+        text: trimmed,
+        timestamp
+      };
+
+      io.to(channelId).emit("newMessage", messagePayload);
+    } catch (error) {
+      log(LOG_LEVELS.ERROR, 'Errore invio messaggio', { error: error.message });
+      socket.emit("chat-error", { message: 'Impossibile inviare il messaggio al momento.' });
+    }
+  });
+
+  socket.on("clearChannelMessages", async (payload = {}, callback) => {
+    const serverId = payload.serverId || socket.currentServerId;
+    const channelId = payload.channelId || socket.currentChannelId;
+
+    if (!serverId || !channelId) {
+      callback?.({ ok: false, error: 'Canale non valido' });
+      return;
+    }
+
+    try {
+      await dbManager.db.run(
+        `DELETE FROM messages WHERE server_id = ? AND channel_id = ?`,
+        [serverId, channelId]
+      );
+
+      io.to(channelId).emit("chatCleared", { serverId, channelId });
+      callback?.({ ok: true });
+    } catch (error) {
+      log(LOG_LEVELS.ERROR, 'Errore cancellazione chat', { error: error.message, serverId, channelId });
+      callback?.({ ok: false, error: 'Impossibile svuotare la chat.' });
+    }
   });
 
   socket.on("voiceSignal", ({ signal, targetPeerId }) => {
     io.to(targetPeerId).emit("voiceSignal", {
       signal,
       peerId: socket.id,
-      username: socket.username
+      username: socket.displayName || socket.username
     });
   });
 
@@ -462,14 +670,17 @@ io.on("connection", (socket) => {
     }
     
     connectedUsers.delete(socket.id);
-    sendServerList();
-    
-    servers.forEach(server => {
-      server.channels.forEach(channel => {
-        channel.users = channel.users.filter(user => user.id !== socket.id);
-        io.to([...server.channels.keys()]).emit("userUpdate", {
-          users: channel.users.map(u => u.username)
-        });
+    broadcastOnlineUsers();
+
+    servers.forEach((server) => {
+      server.channels.forEach((channel, channelId) => {
+        const index = channel.users.findIndex((user) => user.id === socket.id);
+        if (index !== -1) {
+          channel.users.splice(index, 1);
+          io.to(channelId).emit("userUpdate", {
+            users: channel.users.map((user) => user.displayName || user.username)
+          });
+        }
       });
     });
   });
