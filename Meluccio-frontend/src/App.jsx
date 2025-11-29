@@ -119,6 +119,7 @@ const AuthenticatedApp = () => {
   const [audioLevel, setAudioLevel] = useState(0);
   const [audioError, setAudioError] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const socketRef = useRef(null);
   const streamRef = useRef(null);
@@ -448,6 +449,7 @@ const AuthenticatedApp = () => {
     if (isRecordingRef.current) {
       socketRef.current.emit('join-audio-room', channelId);
     }
+    setIsSidebarOpen(false);
   }, []);
 
   const sendMessage = useCallback((event) => {
@@ -472,6 +474,13 @@ const AuthenticatedApp = () => {
       socketRef.current.connect();
     }
   }, [connectionStatus]);
+
+  const runSidebarAction = useCallback(async (action) => {
+    if (typeof action === 'function') {
+      await action();
+    }
+    setIsSidebarOpen(false);
+  }, [setIsSidebarOpen]);
 
   useEffect(() => {
     let isMounted = true;
@@ -597,50 +606,100 @@ const AuthenticatedApp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-700 to-indigo-900 p-6 md:p-10 lg:p-14">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-700 to-indigo-900 px-4 py-5 sm:px-6 sm:py-8 lg:px-14 lg:py-16">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/30 overflow-hidden">
-          <div className="px-6 py-6 sm:px-8 sm:py-8 border-b border-white/20 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+          <div className="px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8 border-b border-white/20 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-2">
               <p className="text-sm uppercase tracking-[0.3em] text-indigo-400 font-semibold mb-1">Benvenuto</p>
-              <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">🎵 Melo Chat</h1>
-              <p className="text-slate-500 mt-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">🎵 Melo Chat</h1>
+              <p className="text-slate-500">
                 Ciao {displayName}! {connectionStatus === 'connected' ? 'Sei online e pronto a chattare.' : 'Stiamo preparando la connessione...'}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col sm:flex-row w-full md:w-auto gap-2 sm:gap-3">
               <button
                 type="button"
-                onClick={() => setShowProfile(true)}
-                className="px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 font-medium hover:bg-indigo-100 transition-colors"
+                onClick={() => setIsSidebarOpen((prev) => !prev)}
+                className="lg:hidden px-4 py-2 rounded-xl bg-indigo-500/10 text-indigo-600 font-semibold hover:bg-indigo-500/20 transition-colors"
+                aria-expanded={isSidebarOpen}
+                aria-controls="sidebar-panel"
               >
-                👤 Profilo
-              </button>
-              <button
-                type="button"
-                onClick={handleToggleConnection}
-                className={`px-4 py-2 rounded-xl font-semibold text-white transition-colors ${
-                  connectionStatus === 'connected'
-                    ? 'bg-red-500 hover:bg-red-600'
-                    : connectionStatus === 'connecting'
-                      ? 'bg-amber-500 hover:bg-amber-600'
-                      : 'bg-emerald-500 hover:bg-emerald-600'
-                }`}
-              >
-                {connectionStatus === 'connected' ? 'Disconnetti' : connectionStatus === 'connecting' ? 'Connessione…' : 'Connetti'}
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition-colors"
-              >
-                🚪 Logout
+                {isSidebarOpen ? 'Nascondi canali' : 'Mostra canali'}
               </button>
             </div>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[320px_1fr] p-6 sm:p-8">
-            <aside className="space-y-6">
+          <div className="px-4 py-6 sm:px-8 sm:py-8 flex flex-col gap-6 lg:grid lg:grid-cols-[320px_1fr]">
+            <aside
+              className={`space-y-6 transition-all duration-200 ease-out order-2 lg:order-1 ${
+                isSidebarOpen ? 'block' : 'hidden'
+              } lg:block`}
+              id="sidebar-panel"
+            >
+              <section className="bg-white rounded-2xl shadow-inner border border-slate-100 p-5">
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
+                  Azioni rapide
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(() => {
+                      setShowProfile(true);
+                    })}
+                    className="w-full px-4 py-3 rounded-xl bg-indigo-50 text-indigo-600 font-semibold hover:bg-indigo-100 transition-colors text-left"
+                  >
+                    👤 Profilo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(async () => {
+                      if (connectionStatus !== 'connected') {
+                        return;
+                      }
+                      if (isRecording) {
+                        stopAudio();
+                      } else {
+                        await startAudio();
+                      }
+                    })}
+                    className={`w-full px-4 py-3 rounded-xl font-semibold transition-colors text-left ${
+                      connectionStatus !== 'connected'
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : isRecording
+                          ? 'bg-rose-500 hover:bg-rose-600 text-white shadow shadow-rose-500/30'
+                          : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow shadow-emerald-500/30'
+                    }`}
+                    disabled={connectionStatus !== 'connected'}
+                  >
+                    {isRecording ? '🔇 Disattiva microfono' : '🎤 Attiva microfono'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(() => {
+                      handleToggleConnection();
+                    })}
+                    className={`w-full px-4 py-3 rounded-xl font-semibold text-left transition-colors ${
+                      connectionStatus === 'connected'
+                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                        : connectionStatus === 'connecting'
+                          ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                          : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    }`}
+                    disabled={!socketRef.current}
+                  >
+                    {connectionStatus === 'connected' ? '🔌 Disconnetti' : connectionStatus === 'connecting' ? '⏳ Connessione…' : '⚡ Connetti'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(() => handleLogout())}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition-colors text-left"
+                  >
+                    🚪 Logout
+                  </button>
+                </div>
+              </section>
+
               <section className="bg-slate-900 text-white rounded-2xl p-5 shadow-xl">
                 <div className="flex items-center justify-between">
                   <span className="text-sm uppercase tracking-wide text-slate-400">Connessione</span>
@@ -668,20 +727,9 @@ const AuthenticatedApp = () => {
                         {isRecording ? 'ATTIVO' : 'MUTO'}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={isRecording ? stopAudio : startAudio}
-                      disabled={connectionStatus !== 'connected'}
-                      className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
-                        connectionStatus !== 'connected'
-                          ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                          : isRecording
-                            ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/30'
-                            : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
-                      }`}
-                    >
-                      {isRecording ? '🔇 Disattiva' : '🎤 Attiva'}
-                    </button>
+                    <p className="text-xs text-slate-400">
+                      Gestisci il microfono dalla sezione "Azioni rapide" della sidebar.
+                    </p>
                     <div className="mt-3 h-12 bg-slate-800/70 rounded-lg flex items-center justify-center">
                       {isRecording ? (
                         <div className="flex items-end gap-[3px] h-8">
@@ -715,7 +763,7 @@ const AuthenticatedApp = () => {
                 <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
                   Stanze &amp; Canali
                 </h2>
-                <div className="space-y-4 max-h-[280px] overflow-y-auto pr-1">
+                <div className="space-y-4 max-h-[280px] overflow-y-auto pr-1 touch-scroll">
                   {servers.length === 0 && (
                     <p className="text-sm text-slate-400">Nessun server disponibile al momento.</p>
                   )}
@@ -753,7 +801,7 @@ const AuthenticatedApp = () => {
                 <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
                   Utenti nel canale
                 </h2>
-                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 touch-scroll">
                   {channelUsers.length === 0 ? (
                     <p className="text-sm text-slate-400">Nessuno è attualmente connesso.</p>
                   ) : (
@@ -771,9 +819,9 @@ const AuthenticatedApp = () => {
               </section>
             </aside>
 
-            <main className="bg-white rounded-2xl shadow-inner border border-slate-100 flex flex-col overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-100">
-                <h2 className="text-xl font-semibold text-slate-700 flex items-center gap-2">
+            <main className="order-1 lg:order-2 relative flex flex-col min-h-[70vh] mobile-panel overflow-hidden">
+              <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 sticky-mobile-header bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+                <h2 className="text-lg sm:text-xl font-semibold text-slate-700 flex items-center gap-2">
                   💬 Conversazione
                   {currentChannelId && (
                     <span className="text-xs font-medium px-2 py-1 bg-indigo-100 text-indigo-600 rounded-full">
@@ -786,7 +834,7 @@ const AuthenticatedApp = () => {
                 </p>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 bg-gradient-to-b from-white to-slate-50">
+              <div className="flex-1 overflow-y-auto touch-scroll px-4 sm:px-6 py-4 sm:py-6 space-y-4 bg-gradient-to-b from-white to-slate-50">
                 {messages.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-slate-400 text-sm">
                     Nessun messaggio. Inizia la conversazione!
@@ -811,7 +859,10 @@ const AuthenticatedApp = () => {
                 )}
               </div>
 
-              <form onSubmit={sendMessage} className="border-t border-slate-100 bg-white p-6 flex flex-col gap-4">
+              <form
+                onSubmit={sendMessage}
+                className="border-t border-slate-100 bg-white/95 sticky-mobile-footer safe-bottom px-4 py-4 sm:px-6 sm:py-6 flex flex-col gap-3"
+              >
                 <div className="flex flex-col sm:flex-row gap-3">
                   <input
                     type="text"
@@ -847,54 +898,77 @@ const AuthenticatedApp = () => {
 };
 
 const UnauthenticatedApp = ({ mode, setMode, registerSuccess, onRegistered }) => (
-  <div className="min-h-screen bg-slate-950 flex items-center justify-center px-6 py-16">
-    <div className="max-w-5xl w-full grid lg:grid-cols-2 gap-12 items-center">
-      <div className="text-white space-y-6">
-        <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 px-3 py-1 rounded-full text-sm text-indigo-200">
-          <span>🛡️</span> Sicurezza enterprise-ready
-        </div>
-        <h1 className="text-4xl lg:text-5xl font-bold leading-tight">
-          Audio chat realtime con autenticazione moderna
+  <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-700 to-indigo-900 px-4 py-10 sm:px-6 sm:py-16 flex items-center">
+    <div className="max-w-5xl w-full mx-auto grid gap-10 lg:grid-cols-[minmax(0,1fr)_420px] items-center">
+      <div className="order-2 lg:order-1 text-center lg:text-left text-white space-y-5">
+        <span className="text-sm uppercase tracking-[0.3em] text-indigo-100/80">Melo Chat</span>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+          Audio chat in tempo reale dovunque ti trovi
         </h1>
-        <p className="text-slate-300 text-lg">
-          Streaming audio a bassa latenza, UI ottimizzata per mobile e gestione utenti avanzata.
-          Accedi al tuo account Melo Chat oppure crea un nuovo profilo in pochi secondi.
+        <p className="text-base text-indigo-50/90 max-w-xl mx-auto lg:mx-0">
+          Accedi dal tuo smartphone o dal desktop e unisciti in pochi secondi alle stanze vocali del tuo team.
         </p>
-        <ul className="space-y-3 text-slate-200">
-          <li className="flex items-start gap-3">
-            <span className="text-emerald-400 mt-0.5">✔</span>
-            <span>Registrazione con validazione avanzata lato client e server.</span>
-          </li>
-          <li className="flex items-start gap-3">
-            <span className="text-emerald-400 mt-0.5">✔</span>
-            <span>Persistenza delle sessioni sicura con token crittografati.</span>
-          </li>
-          <li className="flex items-start gap-3">
-            <span className="text-emerald-400 mt-0.5">✔</span>
-            <span>UI/UX curata nei minimi dettagli con Tailwind CSS.</span>
-          </li>
-        </ul>
+        <div className="flex flex-wrap justify-center lg:justify-start gap-3 text-xs sm:text-sm text-indigo-50/80">
+          <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur">
+            🔐 Token sicuro
+          </span>
+          <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur">
+            📱 UI mobile-friendly
+          </span>
+          <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur">
+            🎚️ Audio low-latency
+          </span>
+        </div>
       </div>
 
-      <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-slate-800">
-            {mode === 'login' ? 'Accedi a Melo Chat' : 'Crea un nuovo account'}
-          </h2>
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-            className="text-sm text-indigo-500 hover:text-indigo-600 font-semibold"
-          >
-            {mode === 'login' ? 'Registrati' : 'Hai già un account?'}
-          </button>
-        </div>
-
-        {mode === 'login' && registerSuccess && (
-          <div className="mb-4 bg-emerald-100 border border-emerald-300 text-emerald-700 px-4 py-3 rounded-lg text-sm">
-            ✅ {registerSuccess}
+      <div className="order-1 lg:order-2 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/40 p-6 sm:p-8">
+        <div className="mb-6 space-y-4">
+          <div className="flex gap-1 rounded-2xl bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => setMode('login')}
+              className={`w-full rounded-xl py-2 text-sm font-semibold transition-all ${
+                mode === 'login'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-indigo-500'
+              }`}
+              aria-pressed={mode === 'login'}
+            >
+              Accedi
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('register')}
+              className={`w-full rounded-xl py-2 text-sm font-semibold transition-all ${
+                mode === 'register'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-500 hover:text-indigo-500'
+              }`}
+              aria-pressed={mode === 'register'}
+            >
+              Registrati
+            </button>
           </div>
-        )}
+
+          <div className="space-y-1">
+            <h2 className="text-2xl font-semibold text-slate-900">
+              {mode === 'login' ? 'Bentornato nel tuo studio audio' : 'Crea il tuo profilo Melo Chat'}
+            </h2>
+            <p className="text-sm text-slate-500">
+              {mode === 'login'
+                ? 'Usa le credenziali con cui hai registrato il tuo account.'
+                : 'Bastano pochi dettagli per iniziare a trasmettere la tua voce.'}
+            </p>
+          </div>
+
+          {mode === 'login' && registerSuccess && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-600">
+              ✅
+              {' '}
+              {registerSuccess}
+            </div>
+          )}
+        </div>
 
         {mode === 'login' ? (
           <LoginForm

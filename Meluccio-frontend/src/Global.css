@@ -1,3 +1,35 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+	.mobile-panel {
+		@apply rounded-2xl border border-slate-100 bg-white shadow-inner;
+	}
+}
+
+@layer utilities {
+	.safe-bottom {
+		padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+	}
+
+	.safe-bottom-sm {
+		padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+	}
+
+	.sticky-mobile-header {
+		position: sticky;
+		top: 0;
+		z-index: 30;
+	}
+
+	.sticky-mobile-footer {
+		position: sticky;
+		bottom: 0;
+		z-index: 30;
+	}
+
+	.touch-scroll {
+		-webkit-overflow-scrolling: touch;
+	}
+}

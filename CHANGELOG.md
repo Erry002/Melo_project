@@ -5,6 +5,26 @@ Tutte le modifiche significative al progetto sono documentate in questo file.
 Il formato è basato su [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### ✨ Added
+- Utility safe-area e classi layout mobile in `Meluccio-frontend/src/Global.css`
+
+### 🔄 Changed
+- `Meluccio-frontend/src/index.css` con tema base chiaro e background scuro uniforme per mettere in risalto il gradiente
+- `Meluccio-frontend/src/App.jsx` riprogettato mobile-first con header/footer sticky e toggle sidebar
+- Sidebar mobile con azioni rapide (profilo, microfono, connessione, logout) e navigazione canali/utenti consolidata
+- `Meluccio-frontend/src/LoginForm.jsx` e `Meluccio-frontend/src/RegisterForm.jsx` ottimizzati per spaziatura e tipografia su piccoli schermi
+- Schermata di autenticazione (`UnauthenticatedApp`) riorganizzata con layout mobile-first, hero sintetico e toggle segmentato login/registrazione
+- Moduli `LoginForm` e `RegisterForm` alleggeriti con nuovo stile chiaro coerente con la card principale
+
+### 🐛 Fixed
+- Rimosso il doppio toggle del microfono in `Meluccio-frontend/src/App.jsx`, ora gestito solo dalle azioni rapide
+- Corretto il bug che duplicava gli utenti quando cambiavano canale in `server.js`
+
+### 📝 Documentation
+- Aggiornato `DEVLOG.md` con stato Milestone 2 e note responsive
+
 ## [2.0.0] - 2025-09-01 🚀
 
 ### 🔥 **MAJOR RELEASE - Architettura Audio Completamente Riscritta**

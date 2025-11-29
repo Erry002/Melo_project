@@ -38,27 +38,27 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
   };
 
   return (
-    <div className="max-w-md mx-auto bg-slate-900 rounded-3xl shadow-xl border border-slate-700/60 p-8 text-white">
-      <div className="text-center mb-8 space-y-2">
-        <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 text-indigo-200 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide">
-          <span>🔒</span> Accesso protetto
+    <div className="space-y-6">
+      <div className="space-y-3 text-center sm:text-left">
+        <div className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-600 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide">
+          <span aria-hidden>🔒</span>
+          Accesso protetto
         </div>
-        <h2 className="text-3xl font-bold tracking-tight">Bentornato su Melo Chat</h2>
-        <p className="text-slate-300 text-sm">
+        <p className="text-sm text-slate-500">
           Inserisci le tue credenziali per continuare nel tuo studio virtuale.
         </p>
       </div>
 
       {error && (
-        <div className="mb-5 bg-rose-500/10 border border-rose-400/60 text-rose-200 text-sm px-4 py-3 rounded-xl flex items-start gap-2">
+        <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
           <span aria-hidden>⚠️</span>
           <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <label htmlFor="username" className="text-sm font-medium text-slate-200">
+          <label htmlFor="username" className="text-sm font-medium text-slate-600">
             Username
           </label>
           <input
@@ -70,12 +70,12 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
             onChange={handleChange}
             placeholder="Il tuo username"
             disabled={loading}
-            className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"
+            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="password" className="text-sm font-medium text-slate-200">
+          <label htmlFor="password" className="text-sm font-medium text-slate-600">
             Password
           </label>
           <div className="relative">
@@ -88,12 +88,12 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
               onChange={handleChange}
               placeholder="La tua password"
               disabled={loading}
-              className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-12 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200"
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
               disabled={loading}
             >
               {showPassword ? '🙈' : '👁️'}
@@ -104,38 +104,40 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
         <button
           type="submit"
           disabled={loading || !formData.username.trim() || !formData.password.trim()}
-          className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
+          className={`w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition-all ${
             loading || !formData.username.trim() || !formData.password.trim()
-              ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+              ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
               : 'bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
           }`}
         >
           {loading ? (
             <>
-              <span className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
               Accesso in corso...
             </>
           ) : (
             <>
-              <span>🎧</span>
+              <span aria-hidden>🎧</span>
               Accedi ora
             </>
           )}
         </button>
       </form>
 
-      <div className="mt-6 text-center text-sm text-slate-400">
-        Non hai ancora un account?
-        {' '}
-        <button
-          type="button"
-          onClick={onSwitchToRegister}
-          className="text-indigo-300 hover:text-indigo-200 font-semibold"
-          disabled={loading}
-        >
-          Registrati gratuitamente
-        </button>
-      </div>
+      {onSwitchToRegister && (
+        <div className="text-center text-sm text-slate-500">
+          Non hai ancora un account?
+          {' '}
+          <button
+            type="button"
+            onClick={onSwitchToRegister}
+            className="font-semibold text-indigo-500 hover:text-indigo-600"
+            disabled={loading}
+          >
+            Registrati gratuitamente
+          </button>
+        </div>
+      )}
     </div>
   );
 };

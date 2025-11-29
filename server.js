@@ -311,8 +311,24 @@ io.on("connection", (socket) => {
     const channel = server.channels.get(channelId);
     if (!channel) return;
 
+    // Rimuovi l'utente da eventuali canali precedenti (anche su altri server)
+    servers.forEach((srv) => {
+      srv.channels.forEach((srvChannel, srvChannelId) => {
+        const existingIndex = srvChannel.users.findIndex((user) => user.id === socket.id);
+        if (existingIndex !== -1) {
+          srvChannel.users.splice(existingIndex, 1);
+          socket.leave(srvChannelId);
+          io.to(srvChannelId).emit("userUpdate", {
+            users: srvChannel.users.map((user) => user.username)
+          });
+        }
+      });
+    });
+
     socket.username = username;
-    channel.users.push({ id: socket.id, username });
+    if (!channel.users.some((user) => user.id === socket.id)) {
+      channel.users.push({ id: socket.id, username });
+    }
     socket.join(channelId);
 
     io.to(channelId).emit("userUpdate", {

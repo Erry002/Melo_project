@@ -1,11 +1,11 @@
 # 📋 DEVLOG - Melo Project
-> **Diario di bordo dello sviluppo** | Ultima modifica: 1 Settembre 2025
+> **Diario di bordo dello sviluppo** | Ultima modifica: 27 Novembre 2025
 
 ## 🎯 STATUS PROGETTO
-- **Stato attuale**: ✅ Audio streaming bidirezionale FUNZIONANTE! 
-- **Ultima sessione**: Audio working - risolti bugs data handling e broadcasting
-- **Prossimi obiettivi**: Ottimizzazione qualità audio (meno "ballerino")
-- **Branch corrente**: `audio-streaming-v1`
+- **Stato attuale**: ✅ Audio streaming stabile · 🚧 Ottimizzazione UI/UX mobile in corso
+- **Ultima sessione**: Kickoff Milestone 1 – Audit responsivo & piano di lavoro
+- **Prossimi obiettivi**: Milestone 2 – Fondamenta responsive (layout & spacing)
+- **Branch corrente**: `feature/mobile-ui`
 
 ---
 
@@ -30,6 +30,21 @@
 ---
 
 ## 📅 CRONOLOGIA SVILUPPO
+
+### 📱 Sessione 2 Dicembre 2025 - IN CORSO
+**Focus**: Milestone 2 – Ottimizzazione UI/UX mobile (fondamenta responsive)
+
+#### Modifiche principali:
+1. **Layout**: `Meluccio-frontend/src/App.jsx` ora mobile-first con header/footer sticky e toggle sidebar
+2. **Utility CSS**: `Meluccio-frontend/src/Global.css` arricchito con classi safe-area e pannello mobile scrollabile
+3. **Sidebar**: Azioni rapide, link e elenco canali/utenti consolidati nella nuova barra laterale mobile
+4. **Auth layout**: Pagina di login ridisegnata con hero compatto, toggle segmentato e card mobile-first
+5. **Styling form**: `Meluccio-frontend/src/LoginForm.jsx` e `Meluccio-frontend/src/RegisterForm.jsx` con spacing tipografia ottimizzati per schermi piccoli
+6. **Bugfix**: Toggle microfono unico nella sidebar e cleanup membership canali per prevenire duplicati utenti
+
+#### Stato test & note:
+- 🔄 Da verificare comportamento sticky con tastiera mobile aperta
+- 🔄 Valutare bottom nav dedicata dopo review team
 
 ### 🔥 **Sessione 1 Settembre 2025 - COMPLETATA**
 **Problema**: Memory leaks e crash con WebRTC P2P

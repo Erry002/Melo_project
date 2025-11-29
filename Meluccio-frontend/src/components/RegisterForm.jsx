@@ -94,32 +94,27 @@ const RegisterForm = ({ onSuccess, onSwitchToLogin }) => {
   };
 
   return (
-    <div className="max-w-md mx-auto bg-gray-800 rounded-xl shadow-lg p-6">
-      {/* Header */}
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-white mb-2">
-          📝 Registrazione
-        </h2>
-        <p className="text-gray-300">
-          Crea il tuo account Melo Chat
+    <div className="space-y-6">
+      <div className="space-y-2 text-center sm:text-left">
+        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">
+          <span aria-hidden>📝</span>
+          Nuovo account
+        </div>
+        <p className="text-sm text-slate-500">
+          Compila i campi richiesti per creare il tuo profilo Melo Chat.
         </p>
       </div>
 
-      {/* Error Alert */}
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">
-          <div className="flex items-center">
-            <span className="mr-2">⚠️</span>
-            {error}
-          </div>
+        <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+          <span aria-hidden>⚠️</span>
+          <span>{error}</span>
         </div>
       )}
 
-      {/* Register Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Username Field */}
         <div>
-          <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-1">
+          <label htmlFor="username" className="mb-1 block text-sm font-medium text-slate-600">
             Username *
           </label>
           <input
@@ -128,23 +123,20 @@ const RegisterForm = ({ onSuccess, onSwitchToLogin }) => {
             name="username"
             value={formData.username}
             onChange={handleChange}
-            className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
-              validationErrors.username 
-                ? 'border-red-500 focus:ring-red-500' 
-                : 'border-gray-600 focus:ring-blue-500'
+            className={`w-full rounded-xl border px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+              validationErrors.username ? 'border-rose-300 focus:ring-rose-400' : 'border-slate-200'
             }`}
             placeholder="Il tuo username univoco"
             required
             disabled={loading}
           />
           {validationErrors.username && (
-            <p className="text-red-400 text-xs mt-1">{validationErrors.username}</p>
+            <p className="mt-1 text-xs text-rose-500">{validationErrors.username}</p>
           )}
         </div>
 
-        {/* Email Field */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
+          <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-600">
             Email *
           </label>
           <input
@@ -153,24 +145,21 @@ const RegisterForm = ({ onSuccess, onSwitchToLogin }) => {
             name="email"
             value={formData.email}
             onChange={handleChange}
-            className={`w-full px-3 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
-              validationErrors.email 
-                ? 'border-red-500 focus:ring-red-500' 
-                : 'border-gray-600 focus:ring-blue-500'
+            className={`w-full rounded-xl border px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+              validationErrors.email ? 'border-rose-300 focus:ring-rose-400' : 'border-slate-200'
             }`}
             placeholder="la-tua-email@esempio.com"
             required
             disabled={loading}
           />
           {validationErrors.email && (
-            <p className="text-red-400 text-xs mt-1">{validationErrors.email}</p>
+            <p className="mt-1 text-xs text-rose-500">{validationErrors.email}</p>
           )}
         </div>
 
-        {/* Display Name Field */}
         <div>
-          <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-1">
-            Nome Display <span className="text-gray-500">(opzionale)</span>
+          <label htmlFor="displayName" className="mb-1 block text-sm font-medium text-slate-600">
+            Nome display <span className="text-slate-400">(opzionale)</span>
           </label>
           <input
             type="text"
@@ -178,15 +167,14 @@ const RegisterForm = ({ onSuccess, onSwitchToLogin }) => {
             name="displayName"
             value={formData.displayName}
             onChange={handleChange}
-            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
             placeholder="Come vuoi essere chiamato"
             disabled={loading}
           />
         </div>
 
-        {/* Password Field */}
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
+          <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-600">
             Password *
           </label>
           <div className="relative">
@@ -196,10 +184,8 @@ const RegisterForm = ({ onSuccess, onSwitchToLogin }) => {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className={`w-full px-3 py-2 pr-10 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
-                validationErrors.password 
-                  ? 'border-red-500 focus:ring-red-500' 
-                  : 'border-gray-600 focus:ring-blue-500'
+              className={`w-full rounded-xl border px-4 py-3 pr-12 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                validationErrors.password ? 'border-rose-300 focus:ring-rose-400' : 'border-slate-200'
               }`}
               placeholder="Almeno 8 caratteri"
               required
@@ -208,21 +194,20 @@ const RegisterForm = ({ onSuccess, onSwitchToLogin }) => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-200"
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
               disabled={loading}
             >
-              {showPassword ? '👁️' : '👁️‍🗨️'}
+              {showPassword ? '🙈' : '👁️‍🗨️'}
             </button>
           </div>
           {validationErrors.password && (
-            <p className="text-red-400 text-xs mt-1">{validationErrors.password}</p>
+            <p className="mt-1 text-xs text-rose-500">{validationErrors.password}</p>
           )}
         </div>
 
-        {/* Confirm Password Field */}
         <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1">
-            Conferma Password *
+          <label htmlFor="confirmPassword" className="mb-1 block text-sm font-medium text-slate-600">
+            Conferma password *
           </label>
           <div className="relative">
             <input
@@ -231,10 +216,8 @@ const RegisterForm = ({ onSuccess, onSwitchToLogin }) => {
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
-              className={`w-full px-3 py-2 pr-10 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
-                validationErrors.confirmPassword 
-                  ? 'border-red-500 focus:ring-red-500' 
-                  : 'border-gray-600 focus:ring-blue-500'
+              className={`w-full rounded-xl border px-4 py-3 pr-12 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                validationErrors.confirmPassword ? 'border-rose-300 focus:ring-rose-400' : 'border-slate-200'
               }`}
               placeholder="Ripeti la password"
               required
@@ -243,57 +226,54 @@ const RegisterForm = ({ onSuccess, onSwitchToLogin }) => {
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-200"
+              className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
               disabled={loading}
             >
-              {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+              {showConfirmPassword ? '🙈' : '👁️‍🗨️'}
             </button>
           </div>
           {validationErrors.confirmPassword && (
-            <p className="text-red-400 text-xs mt-1">{validationErrors.confirmPassword}</p>
+            <p className="mt-1 text-xs text-rose-500">{validationErrors.confirmPassword}</p>
           )}
         </div>
 
-        {/* Register Button */}
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
         >
           {loading ? (
             <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
               Registrando...
             </>
           ) : (
             <>
-              📝 Registrati
+              <span aria-hidden>🚀</span>
+              Registrati
             </>
           )}
         </button>
       </form>
 
-      {/* Switch to Login */}
-      <div className="mt-6 text-center">
-        <p className="text-gray-400 text-sm">
-          Hai già un account?{' '}
+      {onSwitchToLogin && (
+        <div className="text-center text-sm text-slate-500">
+          Hai già un account?
+          {' '}
           <button
             type="button"
             onClick={onSwitchToLogin}
-            className="text-blue-400 hover:text-blue-300 font-medium"
+            className="font-semibold text-indigo-500 hover:text-indigo-600"
             disabled={loading}
           >
             Accedi qui
           </button>
-        </p>
-      </div>
+        </div>
+      )}
 
-      {/* Terms */}
-      <div className="mt-4 text-center">
-        <p className="text-gray-500 text-xs">
-          Registrandoti accetti i termini di servizio di Melo Chat
-        </p>
-      </div>
+      <p className="text-center text-xs text-slate-400">
+        Registrandoti accetti i termini di servizio di Melo Chat.
+      </p>
     </div>
   );
 };
