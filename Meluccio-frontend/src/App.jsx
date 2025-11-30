@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import io from 'socket.io-client';
@@ -5,6 +6,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import LoginForm from './components/LoginForm.jsx';
 import RegisterForm from './components/RegisterForm.jsx';
 import UserProfile from './components/UserProfile.jsx';
+import UserContextMenu from './components/UserContextMenu.jsx';
 import { findBestUrl } from './utils/connection.js';
 import './App.css';
 import './Global.css';
@@ -123,6 +125,9 @@ const AuthenticatedApp = () => {
   const [audioError, setAudioError] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [serverPermissions, setServerPermissions] = useState(() => new Set());
+  const [currentServerRole, setCurrentServerRole] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
 
   const socketRef = useRef(null);
   const streamRef = useRef(null);
@@ -131,10 +136,38 @@ const AuthenticatedApp = () => {
   const currentChannelIdRef = useRef(null);
   const currentServerIdRef = useRef(null);
   const displayNameRef = useRef('');
+  const currentServerRoleRef = useRef(null);
 
   const displayName = useMemo(() => (
     user?.display_name?.trim() || user?.username || 'Ospite'
   ), [user]);
+
+  const isGlobalAdmin = useMemo(
+    () => user?.global_role === 'AmministraMelucci' || Boolean(user?.is_admin),
+    [user]
+  );
+
+  const hasServerPermission = useCallback((permission) => (
+    isGlobalAdmin || serverPermissions.has(permission)
+  ), [isGlobalAdmin, serverPermissions]);
+
+  const currentServerRoles = useMemo(() => {
+    if (!currentServerId) {
+      return [];
+    }
+    const activeServer = servers.find((server) => server.id === currentServerId);
+    return activeServer?.roles || [];
+  }, [servers, currentServerId]);
+
+  const selectedContextUser = contextMenu?.user || null;
+  const isSelectedUserSelf = selectedContextUser
+    ? ((selectedContextUser.userId && selectedContextUser.userId === user?.id)
+      || selectedContextUser.socketId === socketId)
+    : false;
+  const canInviteMembers = hasServerPermission('member.invite');
+  const canRemoveMembers = hasServerPermission('member.remove');
+  const canCreateSubchannel = hasServerPermission('channel.create');
+  const canAssignRoles = hasServerPermission('member.assignRole') || hasServerPermission('roles.manage');
 
   useEffect(() => {
     displayNameRef.current = displayName;
@@ -151,6 +184,10 @@ const AuthenticatedApp = () => {
   useEffect(() => {
     currentServerIdRef.current = currentServerId;
   }, [currentServerId]);
+
+  useEffect(() => {
+    currentServerRoleRef.current = currentServerRole;
+  }, [currentServerRole]);
 
   const stopAudio = useCallback(() => {
     const state = streamRef.current;
@@ -447,6 +484,9 @@ const AuthenticatedApp = () => {
     setChannelUsers([]);
     setMessages([]);
     setChatError('');
+    setServerPermissions(new Set());
+    setCurrentServerRole(null);
+    setContextMenu(null);
 
     socketRef.current.emit('joinChannel', serverId, channelId, displayNameRef.current);
 
@@ -455,6 +495,129 @@ const AuthenticatedApp = () => {
     }
     setIsSidebarOpen(false);
   }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  const handleUserContextMenu = useCallback((event, targetUser) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!targetUser) {
+      return;
+    }
+
+    let { clientX, clientY } = event;
+    if ((!clientX && !clientY) && event.currentTarget?.getBoundingClientRect) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      clientX = rect.left + rect.width / 2;
+      clientY = rect.top + rect.height / 2;
+    }
+
+    setContextMenu({
+      position: {
+        x: clientX,
+        y: clientY
+      },
+      user: targetUser
+    });
+  }, []);
+
+  const handleInviteUser = useCallback((_targetUser) => {
+    setChatError('Funzione amicizia disponibile a breve.');
+  }, []);
+
+  const handleRemoveMember = useCallback((targetUser) => {
+    if (!socketRef.current || !targetUser?.userId || !currentServerIdRef.current) {
+      return;
+    }
+
+    socketRef.current.emit(
+      'removeMember',
+      {
+        serverId: currentServerIdRef.current,
+        targetUserId: targetUser.userId,
+        reason: `Rimosso da ${displayNameRef.current}`
+      },
+      (response) => {
+        if (!response?.ok) {
+          setChatError(response?.error || 'Impossibile rimuovere il membro.');
+        }
+      }
+    );
+  }, []);
+
+  const handleCreateSubchannel = useCallback((targetUser) => {
+    if (!socketRef.current || !currentServerIdRef.current || !currentChannelIdRef.current) {
+      setChatError('Seleziona un canale prima di creare un sottocanale.');
+      return;
+    }
+
+    const suggestedName = `${targetUser?.displayName || targetUser?.username || 'nuovo'}-sub`;
+    const name = window.prompt('Nome del nuovo sottocanale', suggestedName);
+    if (!name || !name.trim()) {
+      return;
+    }
+
+    socketRef.current.emit(
+      'createChannel',
+      {
+        serverId: currentServerIdRef.current,
+        parentId: currentChannelIdRef.current,
+        name: name.trim(),
+        type: 'text'
+      },
+      (response) => {
+        if (!response?.ok) {
+          setChatError(response?.error || 'Impossibile creare il sottocanale.');
+        }
+      }
+    );
+  }, []);
+
+  const handleAssignRole = useCallback((targetUser, roleId) => {
+    if (!socketRef.current || !currentServerIdRef.current || !targetUser?.userId || !roleId) {
+      return;
+    }
+
+    socketRef.current.emit(
+      'assignMemberRole',
+      {
+        serverId: currentServerIdRef.current,
+        targetUserId: targetUser.userId,
+        roleId
+      },
+      (response) => {
+        if (!response?.ok) {
+          setChatError(response?.error || 'Impossibile aggiornare il ruolo.');
+        }
+      }
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!contextMenu?.user) {
+      return;
+    }
+
+    const latest = channelUsers.find((entry) => (
+      (entry.socketId && entry.socketId === contextMenu.user.socketId)
+      || (entry.userId && entry.userId === contextMenu.user.userId)
+    ));
+
+    if (!latest) {
+      setContextMenu(null);
+    } else if (latest !== contextMenu.user) {
+      setContextMenu((prev) => (
+        prev
+          ? {
+            ...prev,
+            user: latest
+          }
+          : prev
+      ));
+    }
+  }, [channelUsers, contextMenu]);
 
   const sendMessage = useCallback((event) => {
     event?.preventDefault?.();
@@ -553,20 +716,58 @@ const AuthenticatedApp = () => {
       setMessages([]);
       setChatError('');
       setIsClearingChat(false);
+      setServerPermissions(new Set());
+      setCurrentServerRole(null);
+      setContextMenu(null);
       stopAudio();
     };
 
-    const handleServerList = (serverList) => {
-      setServers(serverList);
-      if (!serverList?.length) {
+    const handleServerList = (payload) => {
+      const list = Array.isArray(payload) ? payload : [];
+      setServers(list);
+
+      if (!list.length) {
         return;
       }
 
-      const preferredServer = serverList.find((srv) => srv.id === currentServerIdRef.current) || serverList[0];
-      const preferredChannel = preferredServer.channels?.find((ch) => ch.id === currentChannelIdRef.current) || preferredServer.channels?.[0];
+      const currentServerExists = currentServerIdRef.current
+        ? list.some((srv) => srv.id === currentServerIdRef.current)
+        : false;
 
-      if (preferredServer && preferredChannel) {
-        joinChannel(preferredServer.id, preferredChannel.id);
+      const activeServer = currentServerExists
+        ? list.find((srv) => srv.id === currentServerIdRef.current)
+        : list[0];
+
+      const currentChannelExists = currentServerExists
+        ? activeServer?.channels?.some((ch) => ch.id === currentChannelIdRef.current)
+        : false;
+
+      const activeRole = currentServerRoleRef.current;
+      if (activeRole?.roleId && activeServer?.roles) {
+        const matchedRole = activeServer.roles.find((role) => role.id === activeRole.roleId);
+        if (matchedRole && (matchedRole.name !== activeRole.roleName || matchedRole.key !== activeRole.roleKey)) {
+          setCurrentServerRole((prev) => (
+            prev
+              ? {
+                ...prev,
+                roleName: matchedRole.name,
+                roleKey: matchedRole.key
+              }
+              : {
+                roleId: matchedRole.id,
+                roleKey: matchedRole.key,
+                roleName: matchedRole.name
+              }
+          ));
+        }
+      }
+
+      if (!currentServerExists || !currentChannelExists) {
+        const fallbackServer = activeServer || list[0];
+        const fallbackChannel = fallbackServer?.channels?.[0];
+        if (fallbackServer && fallbackChannel) {
+          joinChannel(fallbackServer.id, fallbackChannel.id);
+        }
       }
     };
 
@@ -602,12 +803,39 @@ const AuthenticatedApp = () => {
       });
     };
 
-    const handleUserUpdate = ({ users }) => {
-      setChannelUsers(users);
+    const handleServerPermissions = ({ serverId, roleId, roleKey, roleName, permissions }) => {
+      if (serverId !== currentServerIdRef.current) {
+        return;
+      }
+
+      setServerPermissions(new Set(Array.isArray(permissions) ? permissions : []));
+      setCurrentServerRole({
+        roleId: roleId || null,
+        roleKey: roleKey || null,
+        roleName: roleName || null
+      });
     };
 
-    const handleUserList = (users) => {
-      setChannelUsers(users);
+    const handleMemberRemoved = ({ serverId, reason }) => {
+      if (serverId !== currentServerIdRef.current) {
+        return;
+      }
+
+      setChatError(reason || 'Sei stato rimosso dalla stanza.');
+      setMessages([]);
+      setChannelUsers([]);
+      setCurrentChannelId(null);
+      currentChannelIdRef.current = null;
+      setServerPermissions(new Set());
+      setCurrentServerRole(null);
+      setContextMenu(null);
+    };
+
+    const handleUserUpdate = ({ serverId, channelId, users }) => {
+      if (serverId !== currentServerIdRef.current || channelId !== currentChannelIdRef.current) {
+        return;
+      }
+      setChannelUsers(Array.isArray(users) ? users : []);
     };
 
     const handleAudioError = (payload) => {
@@ -635,7 +863,8 @@ const AuthenticatedApp = () => {
       socket.on('chat-error', handleChatError);
       socket.on('newMessage', handleNewMessage);
       socket.on('userUpdate', handleUserUpdate);
-      socket.on('userList', handleUserList);
+      socket.on('serverPermissions', handleServerPermissions);
+      socket.on('memberRemoved', handleMemberRemoved);
       socket.on('audio-stream', handleIncomingAudio);
       socket.on('audio-error', handleAudioError);
       socket.io?.on('error', handleConnectError);
@@ -655,7 +884,8 @@ const AuthenticatedApp = () => {
       socket.off('chat-error', handleChatError);
       socket.off('newMessage', handleNewMessage);
       socket.off('userUpdate', handleUserUpdate);
-      socket.off('userList', handleUserList);
+      socket.off('serverPermissions', handleServerPermissions);
+      socket.off('memberRemoved', handleMemberRemoved);
       socket.off('audio-stream', handleIncomingAudio);
       socket.off('audio-error', handleAudioError);
       socket.io?.off('error', handleConnectError);
@@ -749,123 +979,44 @@ const AuthenticatedApp = () => {
             >
               <section className="bg-white rounded-2xl shadow-inner border border-slate-100 p-5">
                 <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
-                  Azioni rapide
+                  Utenti nel canale
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(() => {
-                      setShowProfile(true);
-                    })}
-                    className="w-full px-4 py-3 rounded-xl bg-indigo-50 text-indigo-600 font-semibold hover:bg-indigo-100 transition-colors text-left"
-                  >
-                    👤 Profilo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(async () => {
-                      if (connectionStatus !== 'connected') {
-                        return;
-                      }
-                      if (isRecording) {
-                        stopAudio();
-                      } else {
-                        await startAudio();
-                      }
-                    })}
-                    className={`w-full px-4 py-3 rounded-xl font-semibold transition-colors text-left ${
-                      connectionStatus !== 'connected'
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : isRecording
-                          ? 'bg-rose-500 hover:bg-rose-600 text-white shadow shadow-rose-500/30'
-                          : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow shadow-emerald-500/30'
-                    }`}
-                    disabled={connectionStatus !== 'connected'}
-                  >
-                    {isRecording ? '🔇 Disattiva microfono' : '🎤 Attiva microfono'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(() => {
-                      handleToggleConnection();
-                    })}
-                    className={`w-full px-4 py-3 rounded-xl font-semibold text-left transition-colors ${
-                      connectionStatus === 'connected'
-                        ? 'bg-red-500 hover:bg-red-600 text-white'
-                        : connectionStatus === 'connecting'
-                          ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                          : 'bg-blue-500 hover:bg-blue-600 text-white'
-                    }`}
-                    disabled={!socketRef.current}
-                  >
-                    {connectionStatus === 'connected' ? '🔌 Disconnetti' : connectionStatus === 'connecting' ? '⏳ Connessione…' : '⚡ Connetti'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(() => handleLogout())}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition-colors text-left"
-                  >
-                    🚪 Logout
-                  </button>
-                </div>
-              </section>
+                <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1 touch-scroll">
+                  {channelUsers.length === 0 ? (
+                    <p className="text-sm text-slate-400">Nessuno è attualmente connesso.</p>
+                  ) : (
+                    channelUsers.map((channelUser, index) => {
+                      const keyValue = channelUser.socketId
+                        || channelUser.userId
+                        || (channelUser.username ? `${channelUser.username}-${index}` : `user-${index}`);
+                      const displayLabel = channelUser.displayName || channelUser.username || keyValue;
+                      const isSelfEntry = (channelUser.userId && channelUser.userId === user?.id)
+                        || channelUser.socketId === socketId
+                        || displayLabel === displayName;
+                      const roleLabel = channelUser.roleName || 'Online';
 
-              <section className="bg-slate-900 text-white rounded-2xl p-5 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm uppercase tracking-wide text-slate-400">Connessione</span>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                    connectionStatus === 'connected'
-                      ? 'bg-emerald-500/20 text-emerald-200'
-                      : connectionStatus === 'connecting'
-                        ? 'bg-amber-500/20 text-amber-200'
-                        : 'bg-rose-500/20 text-rose-200'
-                  }`}>
-                    {connectionStatus.toUpperCase()}
-                  </span>
-                </div>
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-xs text-slate-400 uppercase tracking-wide">Socket ID</p>
-                    <p className="text-sm font-mono bg-slate-800/60 px-3 py-2 rounded-lg break-all">
-                      {socketId || 'Non connesso'}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Microfono</span>
-                      <span className={`font-semibold ${isRecording ? 'text-emerald-300' : 'text-amber-200'}`}>
-                        {isRecording ? 'ATTIVO' : 'MUTO'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Gestisci il microfono dalla sezione Azioni rapide della sidebar.
-                    </p>
-                    <div className="mt-3 h-12 bg-slate-800/70 rounded-lg flex items-center justify-center">
-                      {isRecording ? (
-                        <div className="flex items-end gap-[3px] h-8">
-                          {Array.from({ length: 10 }).map((_, index) => (
-                            <div
-                              key={`bar-${index}`}
-                              className="w-2 rounded-sm bg-gradient-to-t from-indigo-500 to-purple-400"
-                              style={{
-                                height: `${Math.max(8, audioLevel * 100)}%`,
-                                animationDelay: `${index * 0.1}s`
-                              }}
-                            />
-                          ))}
+                      return (
+                        <div
+                          key={keyValue}
+                          role="button"
+                          tabIndex={0}
+                          onContextMenu={(event) => handleUserContextMenu(event, channelUser)}
+                          onKeyDown={(event) => {
+                            if ((event.key === 'Enter' || event.key === ' ') && (canAssignRoles || canRemoveMembers || canCreateSubchannel)) {
+                              event.preventDefault();
+                              handleUserContextMenu(event, channelUser);
+                            }
+                          }}
+                          className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm text-slate-600 hover:border-indigo-200 hover:bg-indigo-50/70 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                        >
+                          <span className="font-medium truncate" title={displayLabel}>{displayLabel}</span>
+                          <span className="text-xs text-slate-400 ml-3 whitespace-nowrap">
+                            {isSelfEntry ? 'Tu' : roleLabel}
+                          </span>
                         </div>
-                      ) : (
-                        <span className="text-xs text-slate-400">
-                          {connectionStatus === 'connected' ? 'Attiva il microfono per trasmettere' : 'In attesa di connessione'}
-                        </span>
-                      )}
-                    </div>
-                    {audioError && (
-                      <div className="mt-3 text-xs text-rose-200 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
-                        ⚠️ {audioError}
-                      </div>
-                    )}
-                  </div>
+                      );
+                    })
+                  )}
                 </div>
               </section>
 
@@ -909,22 +1060,133 @@ const AuthenticatedApp = () => {
 
               <section className="bg-white rounded-2xl shadow-inner border border-slate-100 p-5">
                 <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
-                  Utenti nel canale
+                  Azioni rapide
                 </h2>
-                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 touch-scroll">
-                  {channelUsers.length === 0 ? (
-                    <p className="text-sm text-slate-400">Nessuno è attualmente connesso.</p>
-                  ) : (
-                    channelUsers.map((usernameValue) => (
-                      <div
-                        key={usernameValue}
-                        className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm"
-                      >
-                        <span className="font-medium text-slate-600">{usernameValue}</span>
-                        <span className="text-xs text-slate-400">{usernameValue === displayName ? 'Tu' : 'Online'}</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(handleToggleConnection)}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors"
+                    disabled={!socketRef.current}
+                  >
+                    <span className="text-lg">{connectionStatus === 'connected' ? '🔌' : '⚡️'}</span>
+                    <span className="text-sm font-semibold">
+                      {connectionStatus === 'connected' ? 'Disconnetti' : 'Riconnetti'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(handleClearChat)}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
+                    disabled={isClearingChat || !currentChannelId || messages.length === 0}
+                  >
+                    <span className="text-lg">🧹</span>
+                    <span className="text-sm font-semibold">
+                      Svuota chat
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(async () => {
+                      if (connectionStatus !== 'connected' || isRecording) {
+                        return;
+                      }
+                      await startAudio();
+                    })}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 transition-colors"
+                    disabled={connectionStatus !== 'connected' || isRecording}
+                  >
+                    <span className="text-lg">🎙️</span>
+                    <span className="text-sm font-semibold">Attiva microfono</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(() => {
+                      if (isRecording) {
+                        stopAudio();
+                      }
+                    })}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-slate-300 hover:bg-slate-100 transition-colors"
+                    disabled={!isRecording}
+                  >
+                    <span className="text-lg">🔇</span>
+                    <span className="text-sm font-semibold">Disattiva microfono</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(() => setShowProfile(true))}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors"
+                  >
+                    <span className="text-lg">👤</span>
+                    <span className="text-sm font-semibold">Profilo utente</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(handleLogout)}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-colors"
+                  >
+                    <span className="text-lg">🚪</span>
+                    <span className="text-sm font-semibold">Esci</span>
+                  </button>
+                </div>
+              </section>
+
+              <section className="bg-slate-900 text-white rounded-2xl p-5 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm uppercase tracking-wide text-slate-400">Connessione</span>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    connectionStatus === 'connected'
+                      ? 'bg-emerald-500/20 text-emerald-200'
+                      : connectionStatus === 'connecting'
+                        ? 'bg-amber-500/20 text-amber-200'
+                        : 'bg-rose-500/20 text-rose-200'
+                  }`}>
+                    {connectionStatus.toUpperCase()}
+                  </span>
+                </div>
+                <div className="mt-4 space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-400 uppercase tracking-wide">Socket ID</p>
+                    <p className="text-sm font-mono bg-slate-800/60 px-3 py-2 rounded-lg break-all">
+                      {socketId || 'Non connesso'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Microfono</span>
+                      <span className={`font-semibold ${isRecording ? 'text-emerald-300' : 'text-amber-200'}`}>
+                        {isRecording ? 'ATTIVO' : 'MUTO'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Controlla il microfono dalle azioni rapide oppure dalla toolbar principale.
+                    </p>
+                    <div className="mt-3 h-12 bg-slate-800/70 rounded-lg flex items-center justify-center">
+                      {isRecording ? (
+                        <div className="flex items-end gap-[3px] h-8">
+                          {Array.from({ length: 10 }).map((_, index) => (
+                            <div
+                              key={`bar-${index}`}
+                              className="w-2 rounded-sm bg-gradient-to-t from-indigo-500 to-purple-400"
+                              style={{
+                                height: `${Math.max(8, audioLevel * 100)}%`,
+                                animationDelay: `${index * 0.1}s`
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          {connectionStatus === 'connected' ? 'Attiva il microfono per trasmettere' : 'In attesa di connessione'}
+                        </span>
+                      )}
+                    </div>
+                    {audioError && (
+                      <div className="mt-3 text-xs text-rose-200 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                        ⚠️ {audioError}
                       </div>
-                    ))
-                  )}
+                    )}
+                  </div>
                 </div>
               </section>
             </aside>
@@ -1030,6 +1292,23 @@ const AuthenticatedApp = () => {
         </div>
       </div>
       {showProfile && <UserProfile onClose={() => setShowProfile(false)} />}
+      <UserContextMenu
+        visible={Boolean(contextMenu?.user)}
+        position={contextMenu?.position || { x: 0, y: 0 }}
+        targetUser={selectedContextUser}
+        onClose={closeContextMenu}
+        onInvite={handleInviteUser}
+        onRemove={handleRemoveMember}
+        onCreateSubchannel={handleCreateSubchannel}
+        onAssignRole={handleAssignRole}
+        roles={currentServerRoles}
+        canInvite={canInviteMembers}
+        canRemove={canRemoveMembers}
+        canCreateSubchannel={canCreateSubchannel}
+        canAssignRole={canAssignRoles}
+        currentRoleId={selectedContextUser?.roleId || null}
+        isSelf={isSelectedUserSelf}
+      />
     </div>
   );
 };

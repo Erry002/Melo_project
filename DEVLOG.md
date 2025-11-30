@@ -22,6 +22,7 @@
 - **Port**: 3001
 - **Tech stack**: Node.js 18.20.8, Express, Socket.IO server
 - **Audio manager**: `SimpleAudioManager.js` per room-based audio
+- **Permessi**: Tabelle `server_roles`, `server_members`, `server_role_permissions` con seed owner/member
 
 ### Target deployment
 - **Hardware**: Raspberry Pi 3B+
@@ -43,11 +44,13 @@
 6. **Bugfix**: Toggle microfono unico nella sidebar e cleanup membership canali per prevenire duplicati utenti
 7. **Chat history**: `server.js` e `Meluccio-frontend/src/App.jsx` ora salvano e sincronizzano la cronologia messaggi da database
 8. **Clear chat**: Pulsante "Svuota chat" con feedback stato ed errori lato client via Socket.IO
+9. **Ruoli & permessi**: Schema SQLite esteso (`server_roles`, `server_members`) e controlli permesso in `server.js` per chat clear/send
 
 #### Stato test & note:
 - 🔄 Da verificare comportamento sticky con tastiera mobile aperta
 - 🔄 Valutare bottom nav dedicata dopo review team
 - 🔄 Test end-to-end multi-client per cronologia persistente e comando svuota chat
+- 🔄 UI gestione ruoli/permessi lato frontend + inviti canale
 
 ### 🔥 **Sessione 1 Settembre 2025 - COMPLETATA**
 **Problema**: Memory leaks e crash con WebRTC P2P
@@ -162,6 +165,8 @@ tail -f logs/server.log
 - [ ] Audio quality fine-tuning
 - [ ] Error handling robusto
 - [ ] UI/UX improvements
+- [ ] Pannello ruoli/admin lato client con assegnazione permessi
+- [ ] Flusso recupero password (bottone "Password dimenticata" + reset)
 
 ---
 

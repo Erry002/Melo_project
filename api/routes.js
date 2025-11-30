@@ -85,7 +85,8 @@ const authenticateToken = async (req, res, next) => {
         
         // Verifica se sessione esiste nel database
         const session = await dbManager.db.get(`
-            SELECT s.*, u.username, u.display_name, u.is_admin, u.status
+            SELECT s.*, u.username, u.display_name, u.is_admin, u.status,
+                   u.global_role, u.server_quota
             FROM user_sessions s
             JOIN users u ON s.user_id = u.id
             WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP
@@ -107,7 +108,9 @@ const authenticateToken = async (req, res, next) => {
             username: session.username,
             display_name: session.display_name,
             is_admin: session.is_admin,
-            status: session.status
+            status: session.status,
+            global_role: session.global_role,
+            server_quota: session.server_quota
         };
         
         next();
@@ -164,8 +167,8 @@ router.post('/auth/register', authLimiter, async (req, res) => {
         // Crea utente
         const hashedPassword = await DatabaseUtils.hashPassword(password);
         const result = await dbManager.db.run(`
-            INSERT INTO users (username, email, password_hash, display_name)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (username, email, password_hash, display_name, global_role, server_quota)
+            VALUES (?, ?, ?, ?, 'creator', 5)
         `, [username, email, hashedPassword, display_name || username]);
         
         const userId = result.lastID;
@@ -178,7 +181,9 @@ router.post('/auth/register', authLimiter, async (req, res) => {
             user: {
                 id: userId,
                 username,
-                display_name: display_name || username
+                display_name: display_name || username,
+                global_role: 'creator',
+                server_quota: 5
             }
         });
         
@@ -200,7 +205,8 @@ router.post('/auth/login', authLimiter, async (req, res) => {
         // Trova utente
         const user = await dbManager.db.get(`
             SELECT id, username, email, password_hash, display_name, 
-                   avatar, is_admin, is_verified, status, created_at
+                   avatar, is_admin, is_verified, status, created_at,
+                   global_role, server_quota
             FROM users 
             WHERE username = ? OR email = ?
         `, [username, username]);
@@ -244,7 +250,9 @@ router.post('/auth/login', authLimiter, async (req, res) => {
                 avatar: user.avatar,
                 is_admin: user.is_admin,
                 is_verified: user.is_verified,
-                status: user.status
+                status: user.status,
+                global_role: user.global_role,
+                server_quota: user.server_quota
             }
         });
         
@@ -290,7 +298,8 @@ router.get('/user/profile', authenticateToken, async (req, res) => {
     try {
         const user = await dbManager.db.get(`
             SELECT id, username, email, display_name, avatar, bio, 
-                   is_admin, is_verified, status, created_at, last_login
+                   is_admin, is_verified, status, created_at, last_login,
+                   global_role, server_quota
             FROM users WHERE id = ?
         `, [req.user.id]);
         

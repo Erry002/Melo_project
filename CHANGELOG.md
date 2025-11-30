@@ -10,6 +10,7 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 ### ✨ Added
 - Utility safe-area e classi layout mobile in `Meluccio-frontend/src/Global.css`
 - Persistenza cronologia messaggi per canale con bottoni di svuotamento chat
+- Schema ruoli/membri per stanza (`database/database.js`) con permessi granulari e owner di default
 
 ### 🔄 Changed
 - `Meluccio-frontend/src/index.css` con tema base chiaro e background scuro uniforme per mettere in risalto il gradiente
@@ -20,6 +21,7 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Moduli `LoginForm` e `RegisterForm` alleggeriti con nuovo stile chiaro coerente con la card principale
 - `server.js` ora serve server/canali dal database e persiste la chat con comandi di cleanup
 - `Meluccio-frontend/src/App.jsx` sincronizza la cronologia dal server, normalizza messaggi ed esegue lo svuotamento sicuro della chat
+- `server.js` applica permessi di ruolo per invio messaggi e svuotamento chat con membership cache lato socket
 
 ### 🐛 Fixed
 - Rimosso il doppio toggle del microfono in `Meluccio-frontend/src/App.jsx`, ora gestito solo dalle azioni rapide
