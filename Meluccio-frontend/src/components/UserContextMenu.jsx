@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 
 const MIN_DISTANCE = 12;
@@ -23,13 +23,7 @@ const UserContextMenu = ({
   isSelf
 }) => {
   const [adjustedPosition, setAdjustedPosition] = useState(position);
-  const [showRoles, setShowRoles] = useState(false);
-
-  useEffect(() => {
-    if (!visible) {
-      setShowRoles(false);
-    }
-  }, [visible, targetUser?.userId]);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     if (!visible) {
@@ -42,7 +36,10 @@ const UserContextMenu = ({
       }
     };
 
-    const handleClickOutside = () => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current?.contains(event.target)) {
+        return;
+      }
       onClose();
     };
 
@@ -84,7 +81,7 @@ const UserContextMenu = ({
   }, [position, visible]);
 
   const availableRoles = useMemo(() => (
-    Array.isArray(roles) ? roles.sort((a, b) => a.priority - b.priority) : []
+    Array.isArray(roles) ? [...roles].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0)) : []
   ), [roles]);
 
   if (!visible || !targetUser) {
@@ -124,6 +121,7 @@ const UserContextMenu = ({
           top: adjustedPosition.y,
           left: adjustedPosition.x
         }}
+        ref={menuRef}
         role="menu"
         aria-label={`Azioni per ${targetUser.displayName || targetUser.username || 'utente'}`}
         onContextMenu={(event) => {
@@ -153,42 +151,39 @@ const UserContextMenu = ({
             Invia richiesta amicizia (presto)
           </button>
 
-          <button
-            type="button"
-            className="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-indigo-50 disabled:text-slate-300 disabled:cursor-not-allowed"
-            onClick={() => setShowRoles((prev) => !prev)}
-            disabled={!canAssignRole || !hasUserId}
-          >
-            {showRoles ? 'Chiudi ruoli' : 'Imposta ruolo'}
-          </button>
-
-          {showRoles && (
-            <div className="max-h-48 overflow-y-auto border-t border-slate-100">
-              {availableRoles.length === 0 && (
-                <p className="px-4 py-3 text-xs text-slate-400">Nessun ruolo disponibile.</p>
-              )}
-              {availableRoles.map((role) => {
-                const isActive = role.id === currentRoleId;
-                return (
-                  <button
-                    key={role.id}
-                    type="button"
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                      isActive
-                        ? 'bg-indigo-500 text-white'
-                        : 'text-slate-600 hover:bg-indigo-50'
-                    }`}
-                    onClick={() => handleRoleSelect(role.id)}
+            {canAssignRole && hasUserId && (
+              <div className="border-t border-b border-slate-100 bg-slate-50/70 px-4 py-3">
+                <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Imposta ruolo
+                  <select
+                    value={currentRoleId || ''}
+                    onChange={(event) => {
+                      const nextRoleId = event.target.value;
+                      if (!nextRoleId || nextRoleId === currentRoleId) {
+                        return;
+                      }
+                      handleRoleSelect(nextRoleId);
+                    }}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:text-slate-300"
+                    disabled={!availableRoles.length}
                   >
-                    <span className="font-medium">{role.name}</span>
-                    {role.description && (
-                      <span className="block text-xs text-slate-400 mt-0.5">{role.description}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                    <option value="" disabled>
+                      {availableRoles.length ? 'Scegli un ruolo…' : 'Nessun ruolo disponibile'}
+                    </option>
+                    {availableRoles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {targetUser.roleName && (
+                  <p className="mt-2 text-[11px] text-slate-400">
+                    Ruolo attuale: <span className="font-semibold text-slate-600">{targetUser.roleName}</span>
+                  </p>
+                )}
+              </div>
+            )}
 
           <button
             type="button"

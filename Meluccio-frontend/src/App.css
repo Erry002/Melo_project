@@ -4,3 +4,27 @@
   margin: 0;
   padding: 0;
 }
+
+.mic-button {
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.mic-button:active {
+  transform: scale(0.96);
+}
+
+.mic-button--recording {
+  animation: pulseGlow 1.8s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.25);
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+}

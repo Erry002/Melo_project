@@ -253,6 +253,51 @@ class DatabaseManager {
     }
   }
 
+  async createServerRole(serverId, options = {}) {
+    if (!serverId) {
+      throw new Error('Server non valido');
+    }
+
+    const rawName = typeof options.name === 'string' ? options.name.trim() : '';
+    if (!rawName) {
+      throw new Error('Nome ruolo obbligatorio');
+    }
+
+    await this.ensureDefaultRoles(serverId);
+
+    const roleId = `role:${serverId}:${randomUUID()}`;
+    const rawDescription = typeof options.description === 'string' ? options.description.trim() : '';
+    const numericPriorityRaw = Number.parseInt(options.priority, 10);
+    const numericPriority = Number.isFinite(numericPriorityRaw) ? numericPriorityRaw : 80;
+    const priority = Math.min(Math.max(Math.floor(numericPriority), 1), 999);
+    const createdBy = Number.isInteger(options.createdBy) ? options.createdBy : null;
+
+    await this.db.run(
+      `INSERT INTO server_roles (id, server_id, name, description, is_owner, is_default, priority, created_by)
+       VALUES (?, ?, ?, ?, 0, 0, ?, ?)`,
+      [roleId, serverId, rawName, rawDescription, priority, createdBy]
+    );
+
+    const requestedPermissions = Array.isArray(options.permissions) ? options.permissions.filter(Boolean) : [];
+    const uniquePermissions = Array.from(new Set(requestedPermissions));
+    if (uniquePermissions.length > 0) {
+      await this.ensureRolePermissions(roleId, uniquePermissions);
+    }
+
+    const roleRow = await this.db.get(
+      `SELECT id, server_id, name, key, description, is_owner, is_default, priority
+       FROM server_roles
+       WHERE id = ?
+       LIMIT 1`,
+      [roleId]
+    );
+
+    return {
+      ...roleRow,
+      permissions: new Set(uniquePermissions)
+    };
+  }
+
   async getRoleByKey(serverId, key) {
     if (!serverId || !key) {
       return null;

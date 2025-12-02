@@ -588,6 +588,26 @@ io.on("connection", async (socket) => {
     return payload;
   };
 
+  const emitServerRoles = (serverId) => {
+    const server = servers.get(serverId);
+    if (!server) {
+      return;
+    }
+
+    const rolesPayload = Array.from(server.roles.values()).map((role) => ({
+      id: role.id,
+      name: role.name,
+      key: role.key,
+      description: role.description,
+      isOwner: role.isOwner,
+      isDefault: role.isDefault,
+      priority: role.priority,
+      permissions: Array.from(role.permissions || [])
+    }));
+
+    io.emit('serverRolesUpdated', { serverId, roles: rolesPayload });
+  };
+
   const broadcastOnlineUsers = () => {
     io.emit(
       "userList",
@@ -676,6 +696,48 @@ io.on("connection", async (socket) => {
         userId: socket.userId
       });
       callback?.({ ok: false, error: error.message || 'Impossibile creare la stanza.' });
+    }
+  });
+
+  socket.on("createServerRole", async (payload = {}, callback) => {
+    const serverId = payload.serverId || socket.currentServerId;
+    const name = typeof payload.name === 'string' ? payload.name.trim() : '';
+
+    if (!serverId || !name) {
+      callback?.({ ok: false, error: 'Server o nome ruolo non validi.' });
+      return;
+    }
+
+    if (!hasPermission(socket, serverId, SERVER_PERMISSIONS.MANAGE_ROLES)) {
+      callback?.({ ok: false, error: 'Permessi insufficienti per gestire i ruoli.' });
+      return;
+    }
+
+    try {
+      const newRole = await dbManager.createServerRole(serverId, {
+        name,
+        description: typeof payload.description === 'string' ? payload.description : '',
+        permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
+        priority: payload.priority,
+        createdBy: socket.userId || null
+      });
+
+      await refreshServerRoles(serverId);
+      emitServerRoles(serverId);
+      broadcastServerList();
+
+      callback?.({ ok: true, roleId: newRole.id });
+    } catch (error) {
+      const isUniqueConstraint = /UNIQUE constraint failed/i.test(error?.message || '');
+      const message = isUniqueConstraint
+        ? 'Esiste già un ruolo con questo nome.'
+        : 'Impossibile creare il ruolo in questo momento.';
+      log(LOG_LEVELS.ERROR, 'Errore creazione ruolo', {
+        error: error.message,
+        serverId,
+        requestedName: name
+      });
+      callback?.({ ok: false, error: message });
     }
   });
 

@@ -17,6 +17,52 @@ const MIN_BUFFER_LEAD = 0.12; // 120ms di margine per assorbire jitter
 const CAPTURE_CHUNK_MS = 60;
 const WORKLET_RMS_THRESHOLD = 0.0015;
 const MESSAGE_HISTORY_LIMIT = 200;
+const DEFAULT_ROLE_PRIORITY = 80;
+
+const ROLE_PERMISSION_GROUPS = [
+  {
+    id: 'server',
+    label: 'Server',
+    permissions: [
+      { id: 'server.manage', label: 'Gestione server' },
+      { id: 'roles.manage', label: 'Gestione ruoli' }
+    ]
+  },
+  {
+    id: 'members',
+    label: 'Membri',
+    permissions: [
+      { id: 'member.invite', label: 'Invitare membri' },
+      { id: 'member.remove', label: 'Rimuovere membri' },
+      { id: 'member.assignRole', label: 'Assegnare ruoli' }
+    ]
+  },
+  {
+    id: 'channels',
+    label: 'Canali',
+    permissions: [
+      { id: 'channel.create', label: 'Creare canali' },
+      { id: 'channel.edit', label: 'Modificare canali' },
+      { id: 'channel.delete', label: 'Eliminare canali' }
+    ]
+  },
+  {
+    id: 'chat',
+    label: 'Chat',
+    permissions: [
+      { id: 'chat.send', label: 'Inviare messaggi' },
+      { id: 'chat.read', label: 'Leggere chat' },
+      { id: 'chat.clear', label: 'Svuotare chat' }
+    ]
+  },
+  {
+    id: 'voice',
+    label: 'Voce',
+    permissions: [
+      { id: 'voice.connect', label: 'Connettersi ai canali vocali' }
+    ]
+  }
+];
 
 const isSecureForMedia = () => {
   if (window.isSecureContext) {
@@ -128,6 +174,16 @@ const AuthenticatedApp = () => {
   const [serverPermissions, setServerPermissions] = useState(() => new Set());
   const [currentServerRole, setCurrentServerRole] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
+  const [isRolePanelOpen, setIsRolePanelOpen] = useState(false);
+  const [isRolesSectionOpen, setIsRolesSectionOpen] = useState(false);
+  const [roleInfoOpenId, setRoleInfoOpenId] = useState(null);
+  const [roleFormName, setRoleFormName] = useState('');
+  const [roleFormDescription, setRoleFormDescription] = useState('');
+  const [roleFormPriority, setRoleFormPriority] = useState(DEFAULT_ROLE_PRIORITY);
+  const [rolePermissionsSelected, setRolePermissionsSelected] = useState(() => new Set());
+  const [roleError, setRoleError] = useState('');
+  const [roleSuccess, setRoleSuccess] = useState('');
+  const [isCreatingRole, setIsCreatingRole] = useState(false);
 
   const socketRef = useRef(null);
   const streamRef = useRef(null);
@@ -159,6 +215,19 @@ const AuthenticatedApp = () => {
     return activeServer?.roles || [];
   }, [servers, currentServerId]);
 
+  const activeServerName = useMemo(() => (
+    servers.find((server) => server.id === currentServerId)?.name || 'Nessuna stanza'
+  ), [servers, currentServerId]);
+
+  const activeChannelName = useMemo(() => {
+    const activeServer = servers.find((server) => server.id === currentServerId);
+    if (!activeServer) {
+      return 'Nessun canale';
+    }
+    const channel = activeServer.channels?.find((entry) => entry.id === currentChannelId);
+    return channel?.name || 'Nessun canale';
+  }, [servers, currentServerId, currentChannelId]);
+
   const selectedContextUser = contextMenu?.user || null;
   const isSelectedUserSelf = selectedContextUser
     ? ((selectedContextUser.userId && selectedContextUser.userId === user?.id)
@@ -188,6 +257,18 @@ const AuthenticatedApp = () => {
   useEffect(() => {
     currentServerRoleRef.current = currentServerRole;
   }, [currentServerRole]);
+
+  useEffect(() => {
+    setIsRolePanelOpen(false);
+    setRoleInfoOpenId(null);
+    setRoleFormName('');
+    setRoleFormDescription('');
+    setRoleFormPriority(DEFAULT_ROLE_PRIORITY);
+    setRolePermissionsSelected(() => new Set());
+    setRoleError('');
+    setRoleSuccess('');
+    setIsCreatingRole(false);
+  }, [currentServerId]);
 
   const stopAudio = useCallback(() => {
     const state = streamRef.current;
@@ -681,6 +762,139 @@ const AuthenticatedApp = () => {
     setIsSidebarOpen(false);
   }, [setIsSidebarOpen]);
 
+  const handleServerRolesUpdated = useCallback(({ serverId, roles: updatedRoles }) => {
+    if (!serverId || !Array.isArray(updatedRoles)) {
+      return;
+    }
+
+    setServers((prev) => prev.map((server) => (
+      server.id === serverId
+        ? { ...server, roles: updatedRoles }
+        : server
+    )));
+
+    if (serverId === currentServerIdRef.current) {
+      const activeRole = currentServerRoleRef.current;
+      if (activeRole?.roleId) {
+        const matched = updatedRoles.find((role) => role.id === activeRole.roleId);
+        if (matched) {
+          setCurrentServerRole((prev) => (
+            prev
+              ? {
+                ...prev,
+                roleName: matched.name,
+                roleKey: matched.key || null
+              }
+              : prev
+          ));
+        } else {
+          setCurrentServerRole(null);
+        }
+      }
+    }
+  }, [setServers, setCurrentServerRole]);
+
+  const toggleRolesSection = useCallback(() => {
+    setRoleError('');
+    setRoleSuccess('');
+    setIsRolesSectionOpen((prev) => {
+      const next = !prev;
+      if (!next) {
+        setIsRolePanelOpen(false);
+        setRoleInfoOpenId(null);
+      }
+      return next;
+    });
+  }, [setIsRolesSectionOpen, setIsRolePanelOpen, setRoleInfoOpenId, setRoleError, setRoleSuccess]);
+
+  const toggleRolePanel = useCallback(() => {
+    setRoleError('');
+    setRoleSuccess('');
+    setIsRolesSectionOpen(true);
+    setIsRolePanelOpen((prev) => !prev);
+    setRoleInfoOpenId(null);
+  }, [setIsRolesSectionOpen, setRoleInfoOpenId, setRoleError, setRoleSuccess]);
+
+  const toggleRoleDetails = useCallback((roleId) => {
+    if (!roleId) {
+      setRoleInfoOpenId(null);
+      return;
+    }
+    setRoleInfoOpenId((prev) => (prev === roleId ? null : roleId));
+  }, [setRoleInfoOpenId]);
+
+  const toggleRolePermission = useCallback((permission) => {
+    if (!permission) {
+      return;
+    }
+    setRolePermissionsSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(permission)) {
+        next.delete(permission);
+      } else {
+        next.add(permission);
+      }
+      return next;
+    });
+    setRoleError('');
+    setRoleSuccess('');
+  }, [setRoleError, setRoleSuccess]);
+
+  const handleCreateRole = useCallback((event) => {
+    event.preventDefault();
+
+    if (!socketRef.current) {
+      setRoleError('Connessione al server non disponibile.');
+      return;
+    }
+
+    const serverId = currentServerIdRef.current;
+    if (!serverId) {
+      setRoleError('Seleziona prima una stanza.');
+      return;
+    }
+
+    const trimmedName = roleFormName.trim();
+    if (!trimmedName) {
+      setRoleError('Inserisci un nome per il ruolo.');
+      return;
+    }
+
+    setIsCreatingRole(true);
+    setRoleError('');
+    setRoleSuccess('');
+
+    const parsedPriority = Number.parseInt(roleFormPriority, 10);
+    const normalizedPriority = Number.isFinite(parsedPriority)
+      ? Math.min(Math.max(parsedPriority, 1), 999)
+      : DEFAULT_ROLE_PRIORITY;
+
+    const payload = {
+      serverId,
+      name: trimmedName,
+      description: roleFormDescription.trim(),
+      priority: normalizedPriority,
+      permissions: Array.from(rolePermissionsSelected)
+    };
+
+    socketRef.current.emit('createServerRole', payload, (response) => {
+      if (!response?.ok) {
+        setRoleError(response?.error || 'Impossibile creare il ruolo.');
+        setRoleSuccess('');
+        setIsCreatingRole(false);
+        return;
+      }
+
+      setRoleFormName('');
+      setRoleFormDescription('');
+      setRoleFormPriority(DEFAULT_ROLE_PRIORITY);
+      setRolePermissionsSelected(() => new Set());
+      setRoleSuccess('Ruolo creato con successo.');
+      setRoleError('');
+      setIsCreatingRole(false);
+    });
+  }, [roleFormName, roleFormDescription, roleFormPriority, rolePermissionsSelected]);
+
   useEffect(() => {
     let isMounted = true;
     let socket;
@@ -864,6 +1078,7 @@ const AuthenticatedApp = () => {
       socket.on('newMessage', handleNewMessage);
       socket.on('userUpdate', handleUserUpdate);
       socket.on('serverPermissions', handleServerPermissions);
+      socket.on('serverRolesUpdated', handleServerRolesUpdated);
       socket.on('memberRemoved', handleMemberRemoved);
       socket.on('audio-stream', handleIncomingAudio);
       socket.on('audio-error', handleAudioError);
@@ -885,6 +1100,7 @@ const AuthenticatedApp = () => {
       socket.off('newMessage', handleNewMessage);
       socket.off('userUpdate', handleUserUpdate);
       socket.off('serverPermissions', handleServerPermissions);
+      socket.off('serverRolesUpdated', handleServerRolesUpdated);
       socket.off('memberRemoved', handleMemberRemoved);
       socket.off('audio-stream', handleIncomingAudio);
       socket.off('audio-error', handleAudioError);
@@ -934,7 +1150,7 @@ const AuthenticatedApp = () => {
         playbackStateRef.context = null;
       }
     };
-  }, [token, joinChannel, handleIncomingAudio, stopAudio]);
+  }, [token, joinChannel, handleIncomingAudio, stopAudio, handleServerRolesUpdated]);
 
   const handleLogout = async () => {
     stopAudio();
@@ -949,15 +1165,15 @@ const AuthenticatedApp = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-700 to-indigo-900 px-4 py-5 sm:px-6 sm:py-8 lg:px-14 lg:py-16">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/30 overflow-hidden">
-          <div className="px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8 border-b border-white/20 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <p className="text-sm uppercase tracking-[0.3em] text-indigo-400 font-semibold mb-1">Benvenuto</p>
+          <div className="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-5 border-b border-white/20 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-1.5">
+              <p className="text-sm uppercase tracking-[0.3em] text-indigo-400 font-semibold">Benvenuto</p>
               <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">🎵 Melo Chat</h1>
               <p className="text-slate-500">
                 Ciao {displayName}! {connectionStatus === 'connected' ? 'Sei online e pronto a chattare.' : 'Stiamo preparando la connessione...'}
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row w-full md:w-auto gap-2 sm:gap-3">
+            <div className="flex flex-col sm:items-end w-full md:w-auto gap-3">
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen((prev) => !prev)}
@@ -967,16 +1183,175 @@ const AuthenticatedApp = () => {
               >
                 {isSidebarOpen ? 'Nascondi canali' : 'Mostra canali'}
               </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-[13px] text-slate-50">
+                <div className="rounded-2xl px-4 py-3 flex flex-col gap-1 min-w-[160px] bg-gradient-to-r from-indigo-600 to-indigo-500 shadow-lg shadow-indigo-500/30">
+                  <span className="font-semibold uppercase tracking-wide text-indigo-100/90 text-[11px]">Stanza attuale</span>
+                  <span className="text-sm font-semibold truncate text-white/95">{activeServerName}</span>
+                </div>
+                <div className="rounded-2xl px-4 py-3 flex flex-col gap-1 min-w-[160px] bg-gradient-to-r from-purple-600 to-violet-500 shadow-lg shadow-violet-500/30">
+                  <span className="font-semibold uppercase tracking-wide text-purple-100/90 text-[11px]">Canale attivo</span>
+                  <span className="text-sm font-semibold truncate text-white/95">{activeChannelName}</span>
+                </div>
+                <div className="rounded-2xl px-4 py-3 flex items-center justify-between min-w-[160px] bg-gradient-to-r from-emerald-600 to-teal-500 shadow-lg shadow-emerald-500/25">
+                  <span className="font-semibold uppercase tracking-wide text-emerald-100/90 text-[11px]">Utenti online</span>
+                  <span className="text-base font-bold text-white/95">{channelUsers.length}</span>
+                </div>
+                <div className="rounded-2xl px-4 py-3 flex items-center justify-between min-w-[160px] bg-gradient-to-r from-slate-600 to-slate-500 shadow-lg shadow-slate-500/25">
+                  <span className="font-semibold uppercase tracking-wide text-slate-100/90 text-[11px]">Stanze totali</span>
+                  <span className="text-base font-bold text-white/95">{servers.length}</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="px-4 py-6 sm:px-8 sm:py-8 flex flex-col gap-6 lg:grid lg:grid-cols-[320px_1fr]">
+          <div className="px-4 py-4 sm:px-8 sm:py-6 flex flex-col gap-4 lg:grid lg:grid-cols-[320px_1fr]">
             <aside
               className={`space-y-6 transition-all duration-200 ease-out order-2 lg:order-1 ${
                 isSidebarOpen ? 'block' : 'hidden'
               } lg:block`}
               id="sidebar-panel"
             >
+              <section className="bg-white rounded-2xl shadow-inner border border-slate-100 p-5">
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
+                  Azioni rapide
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(handleToggleConnection)}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors"
+                    disabled={!socketRef.current}
+                  >
+                    <span className="text-lg">{connectionStatus === 'connected' ? '🔌' : '⚡️'}</span>
+                    <span className="text-sm font-semibold">
+                      {connectionStatus === 'connected' ? 'Disconnetti' : 'Riconnetti'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(handleClearChat)}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
+                    disabled={isClearingChat || !currentChannelId || messages.length === 0}
+                  >
+                    <span className="text-lg">🧹</span>
+                    <span className="text-sm font-semibold">
+                      Svuota chat
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(async () => {
+                      if (connectionStatus !== 'connected' || isRecording) {
+                        return;
+                      }
+                      await startAudio();
+                    })}
+                    className={`mic-button flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                      connectionStatus !== 'connected' || isRecording
+                        ? 'border-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/60'
+                    }`}
+                    disabled={connectionStatus !== 'connected' || isRecording}
+                  >
+                    <span className="text-lg">🎙️</span>
+                    <span className="text-sm font-semibold">Attiva microfono</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(() => {
+                      if (isRecording) {
+                        stopAudio();
+                      }
+                    })}
+                    className={`mic-button flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                      isRecording
+                        ? 'mic-button--recording border-emerald-400 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-200/60'
+                        : 'border-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                    disabled={!isRecording}
+                    aria-pressed={isRecording}
+                  >
+                    <span className="text-lg">🔇</span>
+                    <span className="text-sm font-semibold">Disattiva microfono</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(() => setShowProfile(true))}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors"
+                  >
+                    <span className="text-lg">👤</span>
+                    <span className="text-sm font-semibold">Profilo utente</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runSidebarAction(handleLogout)}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-colors"
+                  >
+                    <span className="text-lg">🚪</span>
+                    <span className="text-sm font-semibold">Esci</span>
+                  </button>
+                </div>
+              </section>
+
+              <section className="bg-slate-900 text-white rounded-2xl p-5 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm uppercase tracking-wide text-slate-400">Connessione</span>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    connectionStatus === 'connected'
+                      ? 'bg-emerald-500/20 text-emerald-200'
+                      : connectionStatus === 'connecting'
+                        ? 'bg-amber-500/20 text-amber-200'
+                        : 'bg-rose-500/20 text-rose-200'
+                  }`}>
+                    {connectionStatus.toUpperCase()}
+                  </span>
+                </div>
+                <div className="mt-4 space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-400 uppercase tracking-wide">Socket ID</p>
+                    <p className="text-sm font-mono bg-slate-800/60 px-3 py-2 rounded-lg break-all">
+                      {socketId || 'Non connesso'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Microfono</span>
+                      <span className={`font-semibold ${isRecording ? 'text-emerald-300' : 'text-amber-200'}`}>
+                        {isRecording ? 'ATTIVO' : 'MUTO'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Controlla il microfono dalle azioni rapide oppure dalla toolbar principale.
+                    </p>
+                    <div className="mt-3 h-12 bg-slate-800/70 rounded-lg flex items-center justify-center">
+                      {isRecording ? (
+                        <div className="flex items-end gap-[3px] h-8">
+                          {Array.from({ length: 10 }).map((_, index) => (
+                            <div
+                              key={`bar-${index}`}
+                              className="w-2 rounded-sm bg-gradient-to-t from-indigo-500 to-purple-400"
+                              style={{
+                                height: `${Math.max(8, audioLevel * 100)}%`,
+                                animationDelay: `${index * 0.1}s`
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          {connectionStatus === 'connected' ? 'Attiva il microfono per trasmettere' : 'In attesa di connessione'}
+                        </span>
+                      )}
+                    </div>
+                    {audioError && (
+                      <div className="mt-3 text-xs text-rose-200 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                        ⚠️ {audioError}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
               <section className="bg-white rounded-2xl shadow-inner border border-slate-100 p-5">
                 <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
                   Utenti nel canale
@@ -1059,135 +1434,248 @@ const AuthenticatedApp = () => {
               </section>
 
               <section className="bg-white rounded-2xl shadow-inner border border-slate-100 p-5">
-                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
-                  Azioni rapide
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(handleToggleConnection)}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors"
-                    disabled={!socketRef.current}
-                  >
-                    <span className="text-lg">{connectionStatus === 'connected' ? '🔌' : '⚡️'}</span>
-                    <span className="text-sm font-semibold">
-                      {connectionStatus === 'connected' ? 'Disconnetti' : 'Riconnetti'}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(handleClearChat)}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
-                    disabled={isClearingChat || !currentChannelId || messages.length === 0}
-                  >
-                    <span className="text-lg">🧹</span>
-                    <span className="text-sm font-semibold">
-                      Svuota chat
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(async () => {
-                      if (connectionStatus !== 'connected' || isRecording) {
-                        return;
-                      }
-                      await startAudio();
-                    })}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 transition-colors"
-                    disabled={connectionStatus !== 'connected' || isRecording}
-                  >
-                    <span className="text-lg">🎙️</span>
-                    <span className="text-sm font-semibold">Attiva microfono</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(() => {
-                      if (isRecording) {
-                        stopAudio();
-                      }
-                    })}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-slate-300 hover:bg-slate-100 transition-colors"
-                    disabled={!isRecording}
-                  >
-                    <span className="text-lg">🔇</span>
-                    <span className="text-sm font-semibold">Disattiva microfono</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(() => setShowProfile(true))}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors"
-                  >
-                    <span className="text-lg">👤</span>
-                    <span className="text-sm font-semibold">Profilo utente</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(handleLogout)}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-colors"
-                  >
-                    <span className="text-lg">🚪</span>
-                    <span className="text-sm font-semibold">Esci</span>
-                  </button>
-                </div>
-              </section>
-
-              <section className="bg-slate-900 text-white rounded-2xl p-5 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm uppercase tracking-wide text-slate-400">Connessione</span>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                    connectionStatus === 'connected'
-                      ? 'bg-emerald-500/20 text-emerald-200'
-                      : connectionStatus === 'connecting'
-                        ? 'bg-amber-500/20 text-amber-200'
-                        : 'bg-rose-500/20 text-rose-200'
-                  }`}>
-                    {connectionStatus.toUpperCase()}
-                  </span>
-                </div>
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-xs text-slate-400 uppercase tracking-wide">Socket ID</p>
-                    <p className="text-sm font-mono bg-slate-800/60 px-3 py-2 rounded-lg break-all">
-                      {socketId || 'Non connesso'}
-                    </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+                  <div className="space-y-1">
+                    <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+                      Ruoli &amp; permessi
+                    </h2>
+                    {isRolesSectionOpen && (
+                      <p className="text-xs text-slate-400">
+                        Gestisci i ruoli disponibili nella stanza corrente.
+                      </p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Microfono</span>
-                      <span className={`font-semibold ${isRecording ? 'text-emerald-300' : 'text-amber-200'}`}>
-                        {isRecording ? 'ATTIVO' : 'MUTO'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Controlla il microfono dalle azioni rapide oppure dalla toolbar principale.
-                    </p>
-                    <div className="mt-3 h-12 bg-slate-800/70 rounded-lg flex items-center justify-center">
-                      {isRecording ? (
-                        <div className="flex items-end gap-[3px] h-8">
-                          {Array.from({ length: 10 }).map((_, index) => (
-                            <div
-                              key={`bar-${index}`}
-                              className="w-2 rounded-sm bg-gradient-to-t from-indigo-500 to-purple-400"
-                              style={{
-                                height: `${Math.max(8, audioLevel * 100)}%`,
-                                animationDelay: `${index * 0.1}s`
-                              }}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-slate-400">
-                          {connectionStatus === 'connected' ? 'Attiva il microfono per trasmettere' : 'In attesa di connessione'}
-                        </span>
-                      )}
-                    </div>
-                    {audioError && (
-                      <div className="mt-3 text-xs text-rose-200 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
-                        ⚠️ {audioError}
-                      </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={toggleRolesSection}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                        isRolesSectionOpen
+                          ? 'bg-slate-200 border-slate-300 text-slate-600'
+                          : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {isRolesSectionOpen ? 'Nascondi' : 'Mostra'}
+                    </button>
+                    {canAssignRoles && (
+                      <button
+                        type="button"
+                        onClick={toggleRolePanel}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                          isRolePanelOpen
+                            ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-500'
+                            : 'bg-indigo-100 border-indigo-200 text-indigo-700 hover:bg-indigo-200 hover:border-indigo-300'
+                        }`}
+                      >
+                        {isRolePanelOpen ? 'Annulla' : 'Nuovo ruolo'}
+                      </button>
                     )}
                   </div>
                 </div>
+
+                {isRolesSectionOpen && (
+                  <>
+                    <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1 touch-scroll">
+                      {currentServerRoles.length === 0 ? (
+                        <p className="text-sm text-slate-400">Nessun ruolo configurato.</p>
+                      ) : (
+                        currentServerRoles
+                          .slice()
+                          .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0))
+                          .map((role) => {
+                            const permissionsSet = role.permissions instanceof Set
+                              ? role.permissions
+                              : new Set(Array.isArray(role.permissions) ? role.permissions : []);
+                            const isInfoOpen = roleInfoOpenId === role.id;
+
+                            return (
+                              <div
+                                key={role.id}
+                                className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-semibold text-slate-600">
+                                      {role.name}
+                                    </p>
+                                    {role.description && (
+                                      <p className="text-xs text-slate-400 leading-snug">
+                                        {role.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col items-end gap-2 text-[10px] uppercase tracking-wide">
+                                    <div className="flex flex-wrap justify-end gap-1">
+                                      {role.isOwner && (
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-600 font-semibold">
+                                          Owner
+                                        </span>
+                                      )}
+                                      {role.isDefault && (
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 font-semibold">
+                                          Default
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleRoleDetails(role.id)}
+                                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full border text-[11px] font-semibold transition-colors ${
+                                        isInfoOpen
+                                          ? 'border-indigo-400 bg-indigo-100 text-indigo-700'
+                                          : 'border-indigo-200 bg-white text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50'
+                                      }`}
+                                      aria-expanded={isInfoOpen}
+                                    >
+                                      <span>Info</span>
+                                      <span className="text-[10px] font-normal uppercase tracking-wider">
+                                        {isInfoOpen ? '▲' : '▼'}
+                                      </span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {isInfoOpen && (
+                                  <div className="mt-3 space-y-3 rounded-lg border border-indigo-100 bg-white/90 px-3 py-3">
+                                    {ROLE_PERMISSION_GROUPS.map((group) => (
+                                      <div key={group.id} className="space-y-2">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                          {group.label}
+                                        </p>
+                                        <div className="space-y-1">
+                                          {group.permissions.map((permission) => {
+                                            const isActive = permissionsSet.has(permission.id);
+                                            return (
+                                              <div
+                                                key={permission.id}
+                                                className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600"
+                                              >
+                                                <span className="font-medium">{permission.label}</span>
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                                                  isActive
+                                                    ? 'bg-emerald-100 text-emerald-700'
+                                                    : 'bg-slate-200 text-slate-600'
+                                                }`}
+                                                >
+                                                  {isActive ? 'Attivo' : 'Off'}
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+
+                    {canAssignRoles && isRolePanelOpen && (
+                      <form onSubmit={handleCreateRole} className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                        <div className="grid grid-cols-1 gap-3">
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                            Nome ruolo
+                            <input
+                              type="text"
+                              value={roleFormName}
+                              onChange={(event) => {
+                                setRoleFormName(event.target.value);
+                                setRoleSuccess('');
+                                setRoleError('');
+                              }}
+                              placeholder="Ad esempio, Moderatore"
+                              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                              required
+                            />
+                          </label>
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                            Descrizione (facoltativa)
+                            <textarea
+                              value={roleFormDescription}
+                              onChange={(event) => {
+                                setRoleFormDescription(event.target.value);
+                                setRoleSuccess('');
+                              }}
+                              rows={2}
+                              placeholder="Descrivi il ruolo per il tuo team"
+                              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                            />
+                          </label>
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                            Priorità (1-999)
+                            <input
+                              type="number"
+                              min={1}
+                              max={999}
+                              value={roleFormPriority}
+                              onChange={(event) => {
+                                setRoleFormPriority(event.target.value);
+                                setRoleSuccess('');
+                              }}
+                              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                            Permessi
+                          </p>
+                          <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                            {ROLE_PERMISSION_GROUPS.map((group) => (
+                              <fieldset key={group.id} className="rounded-lg border border-slate-200 bg-white/80 p-2">
+                                <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                  {group.label}
+                                </legend>
+                                <div className="flex flex-wrap gap-2">
+                                  {group.permissions.map((permission) => (
+                                    <label key={permission.id} className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                                      <input
+                                        type="checkbox"
+                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-400"
+                                        checked={rolePermissionsSelected.has(permission.id)}
+                                        onChange={() => toggleRolePermission(permission.id)}
+                                      />
+                                      {permission.label}
+                                    </label>
+                                  ))}
+                                </div>
+                              </fieldset>
+                            ))}
+                          </div>
+                        </div>
+
+                        {roleError && (
+                          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                            {roleError}
+                          </div>
+                        )}
+                        {roleSuccess && (
+                          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-600">
+                            {roleSuccess}
+                          </div>
+                        )}
+
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={isCreatingRole}
+                            className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors ${
+                              isCreatingRole
+                                ? 'bg-indigo-300 cursor-wait'
+                                : 'bg-indigo-500 hover:bg-indigo-600'
+                            }`}
+                          >
+                            {isCreatingRole ? 'Creazione…' : 'Crea ruolo'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </>
+                )}
               </section>
             </aside>
 
@@ -1233,7 +1721,7 @@ const AuthenticatedApp = () => {
                 )}
               </div>
 
-              <div className="flex-1 overflow-y-auto touch-scroll px-4 sm:px-6 py-4 sm:py-6 space-y-4 bg-gradient-to-b from-white to-slate-50">
+              <div className="flex-1 overflow-y-auto touch-scroll px-4 sm:px-6 py-4 sm:py-6 space-y-4 bg-gradient-to-b from-white to-slate-50 rounded-3xl border border-slate-100 shadow-inner my-4">
                 {messages.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-slate-400 text-sm">
                     Nessun messaggio. Inizia la conversazione!
