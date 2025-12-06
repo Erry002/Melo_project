@@ -14,7 +14,7 @@ module.exports = {
         // Limita il pool di thread per risparmiare memoria
         UV_THREADPOOL_SIZE: '2',
         // Limita l'uso di memoria per il garbage collector di Node.js
-        NODE_OPTIONS: '--max-old-space-size=350 --gc-interval=100000'
+        NODE_OPTIONS: '--max-old-space-size=350'
       }
     },
     {
