@@ -1,9 +1,13 @@
+const path = require('path');
+
+const REPO_ROOT = path.resolve(__dirname, '..');
+
 module.exports = {
   apps: [
     {
       name: 'meluccio',
-      script: '../server.js',
-      cwd: __dirname,
+      script: path.join(REPO_ROOT, 'server.js'),
+      cwd: REPO_ROOT,
       autorestart: true,
       watch: false,
       // Limiti di memoria più conservativi per Raspberry Pi 3B+

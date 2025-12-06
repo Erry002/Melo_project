@@ -48,7 +48,12 @@ pm2 status
 
 log "Verifica endpoint salute"
 if command -v curl >/dev/null 2>&1; then
-  curl --fail --silent --show-error http://127.0.0.1:3001/health | head -c 200 || true
+  for attempt in $(seq 1 10); do
+    if curl --fail --silent --show-error http://127.0.0.1:3001/health | head -c 200; then
+      break
+    fi
+    sleep 2
+  done
 fi
 
 log "Deploy completato"
