@@ -32,6 +32,23 @@
 
 ## 📅 CRONOLOGIA SVILUPPO
 
+### 🛠️ Sessione 6 Dicembre 2025 - IN CORSO
+**Focus**: Preparazione Raspberry Pi & consolidamento branch `test`
+
+#### Attività completate:
+1. Audit branch attivi (`feature/mobile-ui`, `audio-streaming-v1`, `test`) e piano di merge su `test`
+2. Aggiornamento credenziali GitHub per Raspberry Pi 3B (SSH key Ed25519 + trust host)
+3. Clonazione repository su Raspberry e allineamento al branch `test`
+4. Definizione procedura di deploy manuale (pull → install → build → pm2)
+5. Creazione guida `raspberry/SETUP.md` con checklist completa e prossimi step
+6. Automatizzazione setup/deploy (`raspberry/install-deps.sh`, `raspberry/manual-deploy.sh`) e suite test (`raspberry/tests/*`)
+
+#### TODO immediati:
+- [ ] Verificare prestazioni Node + SQLite su Raspberry con benchmark dedicati
+- [ ] Stesura piano backup/ripristino database e configurazioni ngrok/Tailscale
+
+---
+
 ### 📱 Sessione 2 Dicembre 2025 - IN CORSO
 **Focus**: Milestone 2 – Ottimizzazione UI/UX mobile e persistenza chat
 
