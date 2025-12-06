@@ -42,7 +42,7 @@ Dev OS:   macOS (Intel/ARM)
 │   ├── package.json          # Frontend dependencies
 │   └── vite.config.js        # Build configuration
 └── raspberry/                # Deployment scripts
-    ├── ecosystem.config.js   # PM2 configuration
+    ├── ecosystem.config.cjs  # PM2 configuration
     └── *.sh                  # Setup & optimization scripts
 ```
 

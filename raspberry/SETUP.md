@@ -111,7 +111,7 @@ Lo script:
 Lo script:
 - Effettua `git fetch` + `switch` + `pull --ff-only`
 - Installa dipendenze backend/frontend e genera la build
-- Avvia/ricarica pm2 con `raspberry/ecosystem.config.js`
+- Avvia/ricarica pm2 con `raspberry/ecosystem.config.cjs`
 - Esegue `pm2 save`, stampa `pm2 status` e chiama endpoint `/health`
 
 ## 6. Suite Test Raspberry

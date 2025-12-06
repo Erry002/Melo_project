@@ -77,13 +77,13 @@ start_tunnel() {
     
     # Avvia tunnel con PM2
     cd $PROJECT_DIR/raspberry
-    if [ ! -f "ecosystem.config.js" ]; then
-        echo -e "${RED}❌ File ecosystem.config.js non trovato in $(pwd)${NC}"
+    if [ ! -f "ecosystem.config.cjs" ]; then
+            echo -e "${RED}❌ File ecosystem.config.cjs non trovato in $(pwd)${NC}"
         exit 1
     fi
     
     echo -e "${YELLOW}⏳ Avvio nuovo tunnel...${NC}"
-    pm2 start ecosystem.config.js --only ngrok || {
+        pm2 start ecosystem.config.cjs --only ngrok || {
         echo -e "${RED}❌ Errore nell'avvio di ngrok con PM2${NC}"
         exit 1
     }

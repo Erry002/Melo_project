@@ -91,7 +91,7 @@ pm2 flush
 echo -e "\n${BLUE}⚙️ Configurazione PM2...${NC}"
 
 # Crea file di configurazione PM2
-cat > $PROJECT_DIR/ecosystem.config.js << EOF
+cat > $PROJECT_DIR/ecosystem.config.cjs << EOF
 module.exports = {
   apps: [{
     name: 'meluccio',
@@ -141,7 +141,7 @@ EOF
 # Avvia con PM2
 echo -e "\n${BLUE}🚀 Avvio applicazione...${NC}"
 cd $PROJECT_DIR
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 
 # Salva configurazione
 pm2 save

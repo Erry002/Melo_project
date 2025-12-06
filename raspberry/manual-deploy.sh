@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BACKEND_DIR="${REPO_ROOT}"
 FRONTEND_DIR="${REPO_ROOT}/Meluccio-frontend"
-PM2_CONFIG="${REPO_ROOT}/raspberry/ecosystem.config.js"
+PM2_CONFIG="${REPO_ROOT}/raspberry/ecosystem.config.cjs"
 
 log() {
   printf '[deploy] %s\n' "$1"

@@ -51,7 +51,7 @@ optimize_nodejs() {
     npm install -g pm2
     
     # Crea configurazione PM2
-    cat > ecosystem.config.js << EOF
+        cat > ecosystem.config.cjs << EOF
 module.exports = {
   apps: [{
     name: 'meluccio-server',

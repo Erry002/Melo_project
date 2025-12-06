@@ -14,7 +14,7 @@
     "clean": "rm -rf node_modules Meluccio-frontend/node_modules",
     "raspberry:install": "chmod +x raspberry/install.sh && ./raspberry/install.sh",
     "raspberry:optimize": "sudo chmod +x raspberry/optimize.sh && sudo ./raspberry/optimize.sh",
-    "raspberry:start": "pm2 start raspberry/ecosystem.config.js"
+    "raspberry:start": "pm2 start raspberry/ecosystem.config.cjs"
   },
   "keywords": [
     "chat",

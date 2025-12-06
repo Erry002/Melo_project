@@ -88,7 +88,7 @@ manage_services() {
             1)
                 echo -e "\n${YELLOW}⏳ Avvio servizi...${NC}"
                 cd ~/Melo_project/raspberry
-                pm2 start ecosystem.config.js
+                pm2 start ecosystem.config.cjs
                 pm2 save
                 echo -e "\n${GREEN}✅ Servizi avviati${NC}"
                 ;;
