@@ -37,9 +37,9 @@ npm run build
 log "Aggiorno processi PM2"
 cd "${REPO_ROOT}"
 if pm2 describe meluccio >/dev/null 2>&1; then
-  pm2 reload "${PM2_CONFIG}" --update-env
+  pm2 reload meluccio --update-env
 else
-  pm2 start "${PM2_CONFIG}"
+  pm2 start "${PM2_CONFIG}" --only meluccio
 fi
 pm2 save
 
