@@ -1,5 +1,5 @@
 # 🤖 AI HANDOVER DOCUMENTATION - v2.0.0 COMPLETE
-> **Documentazione per AI subentrate** | Updated: 1 Settembre 2025 | **SISTEMA COMPLETATO ✅**
+> **Documentazione per AI subentrate** | Updated: 7 Dicembre 2025 | **SISTEMA COMPLETATO ✅**
 
 ## 🎯 **STATO ATTUALE - SUCCESSO COMPLETO**
 
@@ -7,7 +7,7 @@
 - **Nome**: Melo Project - TeamSpeak-style Chat con Audio Streaming
 - **Owner**: Erry002  
 - **Repo**: https://github.com/Erry002/Melo_project
-- **Branch attivo**: `audio-streaming-v1`
+- **Branch attivo**: `test`
 - **Versione**: v2.0.0 - Sistema audio perfettamente funzionante
 - **User Feedback**: "Molto meglio" - Obiettivo raggiunto ✅
 - **Stato**: Audio streaming real-time funzionante, testing multi-utente
@@ -41,9 +41,12 @@ Dev OS:   macOS (Intel/ARM)
 │   ├── src/App.jsx           # Main React component (430 lines)
 │   ├── package.json          # Frontend dependencies
 │   └── vite.config.js        # Build configuration
-└── raspberry/                # Deployment scripts
-    ├── ecosystem.config.cjs  # PM2 configuration
-    └── *.sh                  # Setup & optimization scripts
+└── raspberry/                # Deployment & monitoring scripts
+  ├── ecosystem.config.cjs  # PM2 configuration (.cjs per compatibilità ESM)
+  ├── install-deps.sh       # Installazione dipendenze Raspberry
+  ├── manual-deploy.sh      # Pull + build + reload pm2
+  ├── tests/                # Stress test, SQLite health, tunnel check
+  └── *.sh                  # Setup & optimization scripts
 ```
 
 ---
@@ -150,6 +153,24 @@ tail -f logs/server.log
 
 # Audio level verification  
 # Console should show: 🎵 Chunk audio, 🔊 Audio ricevuto
+```
+
+### Raspberry Ops (RPI 3B+)
+```bash
+# Prima configurazione dipendenze (Node 18, pm2, sqlite, jq, ecc.)
+./raspberry/install-deps.sh
+
+# Deploy manuale branch test (git pull → npm install → npm run build → pm2 reload)
+./raspberry/manual-deploy.sh
+
+# Suite diagnostica
+./raspberry/tests/sqlite-health.sh
+CONNECTIONS=20 ./raspberry/tests/stress-http.sh
+./raspberry/tests/tunnel-check.sh
+
+# Tunnel pubblico (richiede binario + authtoken)
+pm2 start raspberry/ecosystem.config.cjs --only ngrok
+curl http://127.0.0.1:4040/api/tunnels   # recupera URL pubblici
 ```
 
 ---

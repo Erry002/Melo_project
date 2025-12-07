@@ -11,6 +11,9 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Utility safe-area e classi layout mobile in `Meluccio-frontend/src/Global.css`
 - Persistenza cronologia messaggi per canale con bottoni di svuotamento chat
 - Schema ruoli/membri per stanza (`database/database.js`) con permessi granulari e owner di default
+- Guide Raspberry dedicate: `raspberry/SETUP.md`, script `install-deps.sh`, `manual-deploy.sh`
+- Suite diagnostica Raspberry (`raspberry/tests/`) con stress test HTTP, controllo SQLite e stato tunnel
+- Configurazione PM2 separata (`raspberry/ecosystem.config.cjs`) compatibile con Node ESM
 
 ### 🔄 Changed
 - `Meluccio-frontend/src/index.css` con tema base chiaro e background scuro uniforme per mettere in risalto il gradiente
@@ -22,6 +25,8 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - `server.js` ora serve server/canali dal database e persiste la chat con comandi di cleanup
 - `Meluccio-frontend/src/App.jsx` sincronizza la cronologia dal server, normalizza messaggi ed esegue lo svuotamento sicuro della chat
 - `server.js` applica permessi di ruolo per invio messaggi e svuotamento chat con membership cache lato socket
+- Aggiornati script Raspberry esistenti (`install.sh`, `optimize.sh`, `ngrok-manager.sh`, `start-menu.sh`) per riflettere la nuova configurazione `.cjs`
+- Documentazione generale (`README.md`, `AI_HANDOVER.md`, `DEVLOG.md`) sincronizzata con il workflow Raspberry e ngrok
 
 ### 🐛 Fixed
 - Rimosso il doppio toggle del microfono in `Meluccio-frontend/src/App.jsx`, ora gestito solo dalle azioni rapide

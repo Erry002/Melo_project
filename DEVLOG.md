@@ -42,10 +42,15 @@
 4. Definizione procedura di deploy manuale (pull → install → build → pm2)
 5. Creazione guida `raspberry/SETUP.md` con checklist completa e prossimi step
 6. Automatizzazione setup/deploy (`raspberry/install-deps.sh`, `raspberry/manual-deploy.sh`) e suite test (`raspberry/tests/*`)
+7. Configurazione tunnel ngrok su Raspberry (token, PM2 dedicato, endpoint verificati)
+8. Validazione script test (`sqlite-health`, `stress-http`, `tunnel-check`) con risultati documentati
+  - Stress test `/health`: ~146 req/s medi, latenza p50 ~133 ms su Raspberry Pi 3B
+  - SQLite integrity check: ok, dimensione DB ~0.48 MB
 
 #### TODO immediati:
-- [ ] Verificare prestazioni Node + SQLite su Raspberry con benchmark dedicati
+- [ ] Benchmark approfondito Node + SQLite su Raspberry e monitoraggio CPU/RAM a lungo termine
 - [ ] Stesura piano backup/ripristino database e configurazioni ngrok/Tailscale
+- [ ] Automatizzare rotazione URL ngrok / aggiornamento client
 
 ---
 

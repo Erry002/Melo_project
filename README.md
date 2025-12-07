@@ -136,27 +136,30 @@ Melo_project/
 
 ## 🐧 Deployment Raspberry Pi
 
-### Installazione Automatica
+### Setup Consigliato
 ```bash
-# Su Raspberry Pi
-curl -fsSL https://raw.githubusercontent.com/Erry002/Melo_project/main/raspberry/install.sh | bash
+# Primo setup dipendenze / tool (Node, pm2, sqlite, jq, ecc.)
+./raspberry/install-deps.sh
+
+# Deploy manuale (pull → install → build → pm2 reload)
+./raspberry/manual-deploy.sh
+
+# Avvia tunnel ngrok (dopo aver installato il binario e authtoken)
+pm2 start raspberry/ecosystem.config.cjs --only ngrok
+
+# Salva i processi per il reboot
+pm2 save
 ```
 
-### Configurazione Manuale
+### Diagnostica & Stress Test
 ```bash
-# Copia files su Pi
-scp -r . pi@your-pi-ip:/home/pi/Melo_project
-
-# SSH su Pi e installa
-ssh pi@your-pi-ip
-cd Melo_project
-chmod +x raspberry/install.sh
-./raspberry/install.sh
+./raspberry/tests/sqlite-health.sh          # Integrità DB e vacuum opzionale
+CONNECTIONS=20 ./raspberry/tests/stress-http.sh  # Load test endpoint /health
+./raspberry/tests/tunnel-check.sh           # Stato Tailscale + tunnel ngrok
 ```
 
-### Ottimizzazioni Sistema
+### Ottimizzazioni Hardware/OS
 ```bash
-# Esegui ottimizzazioni per performance
 sudo ./raspberry/optimize.sh
 ```
 
@@ -173,8 +176,11 @@ sudo ./raspberry/optimize.sh
 - `npm run preview` - Preview build locale
 
 ### Raspberry Pi
-- `./raspberry/start-dev.sh` - Avvio sviluppo con PM2
+- `./raspberry/install-deps.sh` - Installa dipendenze sistema + Node/pm2
+- `./raspberry/manual-deploy.sh` - Deploy manuale branch (default `test`)
+- `./raspberry/start-dev.sh` - Avvio ambiente sviluppo con PM2
 - `./raspberry/start-menu.sh` - Menu interattivo gestione
+- `pm2 start raspberry/ecosystem.config.cjs --only ngrok` - Avvia tunnel ngrok
 
 ## 🔧 Configurazione Avanzata
 

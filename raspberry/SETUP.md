@@ -114,6 +114,8 @@ Lo script:
 - Avvia/ricarica pm2 con `raspberry/ecosystem.config.cjs` (solo processo `meluccio`, ngrok avviabile a parte con `pm2 start raspberry/ecosystem.config.cjs --only ngrok` dopo aver installato il binario)
 - Esegue `pm2 save`, stampa `pm2 status` e chiama endpoint `/health`
 
+> ℹ️ **Ngrok**: installa il binario ARM (`curl https://bin.equinox.io/...`) in `/usr/local/bin/ngrok`, registra l'authtoken (`ngrok config add-authtoken <TOKEN>`) e copia la config base in `~/.config/ngrok/ngrok.yml` prima di avviare il processo PM2.
+
 ## 6. Suite Test Raspberry
 
 Directory: `raspberry/tests`
