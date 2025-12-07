@@ -1,6 +1,8 @@
 const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
+const HOME_DIR = process.env.HOME || path.resolve(REPO_ROOT, '..');
+const NGROK_CONFIG = path.join(HOME_DIR, '.config', 'ngrok', 'ngrok.yml');
 
 module.exports = {
   apps: [
@@ -24,7 +26,7 @@ module.exports = {
     {
       name: 'ngrok',
       script: '/usr/local/bin/ngrok',
-      args: ['start', '--all', '--config', '/home/erry002/.config/ngrok/ngrok.yml'],
+      args: ['start', '--all', '--config', NGROK_CONFIG],
       interpreter: 'none',
       cwd: __dirname,
       autorestart: true,
