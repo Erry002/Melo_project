@@ -100,12 +100,24 @@ manage_services() {
                 ;;
             2)
                 echo -e "\n${YELLOW}⏳ Arresto servizi...${NC}"
-                pm2 stop all
+                pm2 stop meluccio >/dev/null 2>&1 || true
+                pm2 stop ngrok >/dev/null 2>&1 || true
                 echo -e "\n${GREEN}✅ Servizi fermati${NC}"
                 ;;
             3)
                 echo -e "\n${YELLOW}⏳ Riavvio servizi...${NC}"
-                pm2 restart all
+                if pm2 describe meluccio >/dev/null 2>&1; then
+                    pm2 restart meluccio
+                else
+                    pm2 start "${PM2_CONFIG}" --only meluccio
+                fi
+                if pm2 describe ngrok >/dev/null 2>&1; then
+                    pm2 restart ngrok
+                else
+                    echo -e "${YELLOW}⚠️ Processo ngrok non presente, eseguo avvio${NC}"
+                    pm2 start "${PM2_CONFIG}" --only ngrok
+                fi
+                pm2 save
                 echo -e "\n${GREEN}✅ Servizi riavviati${NC}"
                 ;;
             4)
