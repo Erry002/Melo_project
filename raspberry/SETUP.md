@@ -116,6 +116,44 @@ Lo script:
 
 > ℹ️ **Ngrok**: installa il binario ARM (`curl https://bin.equinox.io/...`) in `/usr/local/bin/ngrok`, registra l'authtoken (`ngrok config add-authtoken <TOKEN>`) e copia la config base in `~/.config/ngrok/ngrok.yml` prima di avviare il processo PM2.
 
+### 5.3 Installazione e configurazione Ngrok
+
+1. **Scarica il binario per Raspberry Pi 3B (armv7)**:
+   ```bash
+   curl -L https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-v3-stable-linux-arm.zip -o /tmp/ngrok.zip
+   unzip -j /tmp/ngrok.zip ngrok -d /tmp
+   sudo install -m 755 /tmp/ngrok /usr/local/bin/ngrok
+   ngrok version
+   ```
+   > Se usi un Pi con architettura a 64 bit, sostituisci l'URL con `.../ngrok-v3-stable-linux-arm64.zip`.
+
+2. **Configura l'authtoken personale** (lo trovi nella tua dashboard ngrok):
+   ```bash
+   ngrok config add-authtoken <TOKEN_PERSONALE>
+   ```
+   > Se il comando restituisce `Unrecognized command: config` significa che è ancora presente ngrok v2. In quel caso usa `ngrok authtoken <TOKEN_PERSONALE>` oppure aggiorna il binario come indicato al punto 1 (assicurati che `ngrok version` riporti `3.x`).
+
+3. **Copia il template di configurazione del repo** (include tunnel `meluccio` porta 3001):
+   ```bash
+   mkdir -p ~/.config/ngrok
+   cp ~/Projects/Melo_project/raspberry/ngrok.yml ~/.config/ngrok/ngrok.yml
+   ```
+
+4. **Verifica l'accesso all'API locale** (facoltativo ma utile per i test):
+   ```bash
+   ngrok start --config ~/.config/ngrok/ngrok.yml --none &
+   sleep 2
+   curl -s http://127.0.0.1:4040/api/tunnels
+   pkill -f "ngrok start"
+   ```
+
+5. **Avvio con PM2** (dopo il deploy):
+   ```bash
+   pm2 start ~/Projects/Melo_project/raspberry/ecosystem.config.cjs --only ngrok
+   pm2 save
+   ```
+   Controlla URL e stato con `pm2 logs ngrok` oppure `curl http://127.0.0.1:4040/api/tunnels`.
+
 ## 6. Suite Test Raspberry
 
 Directory: `raspberry/tests`

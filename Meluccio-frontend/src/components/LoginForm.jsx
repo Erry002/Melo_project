@@ -1,9 +1,314 @@
 // 🔐 Form di login per Melo Chat con UI moderna Tailwind
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import { useAuth } from '../hooks/useAuth.jsx';
+import { findBestUrl } from '../utils/connection.js';
+
+const PasswordResetModal = ({ isOpen, onClose }) => {
+  const [step, setStep] = useState('request');
+  const [email, setEmail] = useState('');
+  const [token, setToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [message, setMessage] = useState('');
+  const [debugInfo, setDebugInfo] = useState(null);
+
+  // Ripristina lo stato interno ad ogni apertura
+  useEffect(() => {
+    if (isOpen) {
+      setStep('request');
+      setEmail('');
+      setToken('');
+      setNewPassword('');
+      setLoading(false);
+      setError(null);
+      setMessage('');
+      setDebugInfo(null);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  const handleRequest = async (event) => {
+    event.preventDefault();
+    if (!email.trim()) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const baseUrl = await findBestUrl();
+      const response = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: email.trim() })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Impossibile richiedere il reset della password.');
+      }
+
+      setMessage(data?.message || "Se i dati forniti sono corretti riceverai un'email con le istruzioni per il reset.");
+      if (data?.debug?.resetToken) {
+        setToken(data.debug.resetToken);
+        setDebugInfo(data.debug);
+      }
+      setStep('verify');
+    } catch (requestError) {
+      console.error('Errore richiesta reset password:', requestError);
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (event) => {
+    event.preventDefault();
+    if (!token.trim()) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const baseUrl = await findBestUrl();
+      const response = await fetch(`${baseUrl}/api/auth/reset-password/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token: token.trim() })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.valid) {
+        throw new Error(data?.error || 'Token non valido o scaduto.');
+      }
+
+      setMessage('Token valido! Ora imposta una nuova password.');
+      setStep('reset');
+    } catch (verifyError) {
+      console.error('Errore verifica token reset password:', verifyError);
+      setError(verifyError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReset = async (event) => {
+    event.preventDefault();
+    if (!token.trim() || newPassword.length < 8) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const baseUrl = await findBestUrl();
+      const response = await fetch(`${baseUrl}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token: token.trim(), new_password: newPassword })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Impossibile reimpostare la password.');
+      }
+
+      setMessage(data?.message || 'Password reimpostata con successo! Ora puoi effettuare il login.');
+      setStep('success');
+    } catch (resetError) {
+      console.error('Errore reset password:', resetError);
+      setError(resetError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-800">Recupera password</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            aria-label="Chiudi"
+          >
+            ✕
+          </button>
+        </div>
+
+        <p className="mt-2 text-sm text-slate-500">
+          Segui i passaggi per ricevere un link e impostare una nuova password sicura.
+        </p>
+
+        {error && (
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+            <span aria-hidden>⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+
+        {message && (
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <span aria-hidden>✅</span>
+            <span>{message}</span>
+          </div>
+        )}
+
+        {debugInfo && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <p className="font-semibold">Debug token</p>
+            <p className="break-words text-xs text-amber-700">{debugInfo.resetToken}</p>
+            <a
+              href={debugInfo.resetLink}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700"
+            >
+              Apri link di debug →
+            </a>
+          </div>
+        )}
+
+        {step === 'request' && (
+          <form onSubmit={handleRequest} className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="reset-email" className="text-sm font-medium text-slate-600">
+                Email associata all&apos;account
+              </label>
+              <input
+                id="reset-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                placeholder="esempio@email.com"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading || !email.trim()}
+              className={`w-full rounded-xl px-4 py-3 font-semibold transition ${
+                loading || !email.trim()
+                  ? 'cursor-not-allowed bg-slate-200 text-slate-500'
+                  : 'bg-indigo-500 text-white hover:bg-indigo-600'
+              }`}
+            >
+              {loading ? 'Invio in corso...' : 'Invia link di reset'}
+            </button>
+          </form>
+        )}
+
+        {step === 'verify' && (
+          <form onSubmit={handleVerify} className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="reset-token" className="text-sm font-medium text-slate-600">
+                Inserisci il token ricevuto
+              </label>
+              <input
+                id="reset-token"
+                type="text"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+                placeholder="Incolla il token di reset"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-500">
+              <button
+                type="button"
+                onClick={() => setStep('request')}
+                className="font-medium text-slate-500 hover:text-slate-700"
+              >
+                ← Torna indietro
+              </button>
+              <span>
+                Non trovi il token? Controlla anche la cartella spam.
+              </span>
+            </div>
+            <button
+              type="submit"
+              disabled={loading || !token.trim()}
+              className={`w-full rounded-xl px-4 py-3 font-semibold transition ${
+                loading || !token.trim()
+                  ? 'cursor-not-allowed bg-slate-200 text-slate-500'
+                  : 'bg-indigo-500 text-white hover:bg-indigo-600'
+              }`}
+            >
+              {loading ? 'Verifica in corso...' : 'Verifica token'}
+            </button>
+          </form>
+        )}
+
+        {step === 'reset' && (
+          <form onSubmit={handleReset} className="mt-6 space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="reset-password" className="text-sm font-medium text-slate-600">
+                Nuova password
+              </label>
+              <input
+                id="reset-password"
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                minLength={8}
+                placeholder="Almeno 8 caratteri"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading || newPassword.length < 8}
+              className={`w-full rounded-xl px-4 py-3 font-semibold transition ${
+                loading || newPassword.length < 8
+                  ? 'cursor-not-allowed bg-slate-200 text-slate-500'
+                  : 'bg-emerald-500 text-white hover:bg-emerald-600'
+              }`}
+            >
+              {loading ? 'Aggiornamento in corso...' : 'Aggiorna password'}
+            </button>
+          </form>
+        )}
+
+        {step === 'success' && (
+          <div className="mt-6 space-y-4 text-sm text-slate-600">
+            <p>
+              La tua password è stata aggiornata. Puoi chiudere questa finestra e tornare al login.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-xl bg-indigo-500 px-4 py-3 font-semibold text-white transition hover:bg-indigo-600"
+            >
+              Torna al login
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+PasswordResetModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired
+};
 
 const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
   const { login, loading, error, clearError } = useAuth();
@@ -12,6 +317,7 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -99,6 +405,16 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
               {showPassword ? '🙈' : '👁️'}
             </button>
           </div>
+          <div className="flex justify-end text-xs">
+            <button
+              type="button"
+              onClick={() => setShowResetModal(true)}
+              className="font-medium text-indigo-500 hover:text-indigo-600"
+              disabled={loading}
+            >
+              Password dimenticata?
+            </button>
+          </div>
         </div>
 
         <button
@@ -138,6 +454,11 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
           </button>
         </div>
       )}
+
+        <PasswordResetModal
+          isOpen={showResetModal}
+          onClose={() => setShowResetModal(false)}
+        />
     </div>
   );
 };

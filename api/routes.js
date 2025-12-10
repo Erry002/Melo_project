@@ -8,12 +8,14 @@ import dbManager, { DatabaseUtils } from '../database/database.js';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
+import { sendPasswordResetEmail } from '../utils/emailService.js';
 
 const router = express.Router();
 
 // Configurazione JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'MeloChat_Super_Secret_Key_2024';
 const JWT_EXPIRES_IN = '7d';
+const PASSWORD_RESET_TOKEN_TTL_MINUTES = Number.parseInt(process.env.PASSWORD_RESET_TTL_MINUTES || '60', 10) || 60;
 
 // Rate limiting - Commentato per compatibilità Node.js
 /*
@@ -259,6 +261,148 @@ router.post('/auth/login', authLimiter, async (req, res) => {
     } catch (error) {
         console.error('Errore login:', error);
         res.status(500).json({ error: 'Errore interno del server' });
+    }
+});
+
+// Richiedi reset password
+router.post('/auth/forgot-password', generalLimiter, async (req, res) => {
+    try {
+        const { email, username, identifier } = req.body || {};
+        const provided = [email, username, identifier].find(value => typeof value === 'string' && value.trim().length > 0);
+
+        if (!provided) {
+            return res.status(400).json({ error: 'Email o username richiesti' });
+        }
+
+        const lookup = provided.trim().toLowerCase();
+        const user = await dbManager.db.get(`
+            SELECT id, email, username, display_name
+            FROM users
+            WHERE LOWER(email) = ? OR LOWER(username) = ?
+        `, [lookup, lookup]);
+
+        if (!user) {
+            return res.json({
+                message: "Se i dati forniti sono corretti riceverai un'email con le istruzioni per il reset."
+            });
+        }
+
+        if (!user.email) {
+            return res.status(400).json({ error: 'Per questo account non è configurata un\'email.' });
+        }
+
+        await dbManager.invalidatePasswordResetTokens(user.id);
+
+        const { token, expiresAt } = await dbManager.createPasswordResetToken(user.id, {
+            ttlMinutes: PASSWORD_RESET_TOKEN_TTL_MINUTES
+        });
+
+        const baseUrlCandidate = process.env.APP_BASE_URL || req.headers.origin || `${req.protocol}://${req.get('host')}`;
+        const baseUrl = (baseUrlCandidate || 'http://localhost:5173').replace(/\/$/, '');
+        const resetLink = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+
+        let emailSendError = null;
+
+        try {
+            await sendPasswordResetEmail({
+                to: user.email,
+                displayName: user.display_name || user.username,
+                resetLink,
+                expiresAt
+            });
+        } catch (error) {
+            emailSendError = error;
+            console.error('Errore invio email reset password:', error);
+        }
+
+        const responsePayload = {
+            message: "Se i dati forniti sono corretti riceverai un'email con le istruzioni per il reset."
+        };
+
+        if (process.env.NODE_ENV !== 'production') {
+            responsePayload.debug = { resetToken: token, resetLink, expiresAt };
+        }
+
+        if (emailSendError) {
+            if (process.env.NODE_ENV === 'production') {
+                return res.status(500).json({ error: 'Impossibile inviare email di reset. Riprova più tardi.' });
+            }
+            responsePayload.warning = 'Invio email non configurato, usa il token di debug per testare il flusso.';
+        }
+
+        await logActivity(user.id, 'password_reset_requested', { by: lookup }, req.ip);
+
+        return res.json(responsePayload);
+    } catch (error) {
+        console.error('Errore richiesta reset password:', error);
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
+});
+
+// Verifica token reset password
+router.post('/auth/reset-password/verify', generalLimiter, async (req, res) => {
+    try {
+        const { token } = req.body || {};
+
+        if (!token || typeof token !== 'string' || token.trim().length === 0) {
+            return res.status(400).json({ error: 'Token reset richiesto' });
+        }
+
+        const tokenRecord = await dbManager.getValidPasswordResetToken(token.trim());
+
+        if (!tokenRecord) {
+            return res.status(400).json({ error: 'Token non valido o scaduto' });
+        }
+
+        return res.json({
+            valid: true,
+            expiresAt: tokenRecord.expires_at
+        });
+    } catch (error) {
+        console.error('Errore verifica token reset password:', error);
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
+});
+
+// Completa reset password
+router.post('/auth/reset-password', generalLimiter, async (req, res) => {
+    try {
+        const { token, new_password: newPassword } = req.body || {};
+
+        if (!token || typeof token !== 'string' || token.trim().length === 0) {
+            return res.status(400).json({ error: 'Token reset richiesto' });
+        }
+
+        if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+            return res.status(400).json({ error: 'Nuova password deve essere di almeno 8 caratteri' });
+        }
+
+        const tokenRecord = await dbManager.getValidPasswordResetToken(token.trim());
+
+        if (!tokenRecord) {
+            return res.status(400).json({ error: 'Token non valido o scaduto' });
+        }
+
+        const hashedPassword = await DatabaseUtils.hashPassword(newPassword);
+
+        await dbManager.db.run(`
+            UPDATE users
+            SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [hashedPassword, tokenRecord.user_id]);
+
+        await dbManager.markPasswordResetTokenUsed(tokenRecord.id);
+        await dbManager.invalidatePasswordResetTokens(tokenRecord.user_id);
+
+        await dbManager.db.run('DELETE FROM user_sessions WHERE user_id = ?', [tokenRecord.user_id]);
+        await dbManager.db.run("UPDATE users SET status = 'offline' WHERE id = ?", [tokenRecord.user_id]);
+
+        await logActivity(tokenRecord.user_id, 'password_reset_completed', null, req.ip);
+
+        return res.json({ message: 'Password reimpostata con successo. Effettua nuovamente il login.' });
+    } catch (error) {
+        console.error('Errore reset password:', error);
+        return res.status(500).json({ error: 'Errore interno del server' });
     }
 });
 

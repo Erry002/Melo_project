@@ -7,6 +7,12 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Percorsi principali
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PM2_CONFIG="${SCRIPT_DIR}/ecosystem.config.cjs"
+MANUAL_DEPLOY="${SCRIPT_DIR}/manual-deploy.sh"
+
 # Funzione menu
 show_menu() {
     clear
@@ -87,8 +93,8 @@ manage_services() {
         case $service_choice in
             1)
                 echo -e "\n${YELLOW}⏳ Avvio servizi...${NC}"
-                cd ~/Melo_project/raspberry
-                pm2 start ecosystem.config.cjs
+                cd "${SCRIPT_DIR}"
+                pm2 start "${PM2_CONFIG}"
                 pm2 save
                 echo -e "\n${GREEN}✅ Servizi avviati${NC}"
                 ;;
@@ -181,20 +187,21 @@ manage_system() {
 update_app() {
     clear
     echo -e "${BLUE}🔄 Aggiornamento Applicazione${NC}\n"
-    
-    cd /home/pi/meluccio
-    git pull
-    
-    cd Meluccio-frontend
-    npm install --production
-    export NODE_OPTIONS="--max-old-space-size=512"
-    npm run build
-    
-    cd ..
-    npm install --production
-    
-    sudo systemctl restart meluccio
-    sudo systemctl restart nginx
+    cd "${REPO_ROOT}"
+    git pull --ff-only
+
+    if [ -x "${MANUAL_DEPLOY}" ]; then
+        "${MANUAL_DEPLOY}" "$(git rev-parse --abbrev-ref HEAD)"
+    else
+        echo -e "${YELLOW}⚠️ Script manual-deploy non eseguibile, eseguo installazione manuale${NC}"
+        npm install
+        cd "${REPO_ROOT}/Meluccio-frontend"
+        npm install
+        npm run build
+        cd "${REPO_ROOT}"
+        pm2 reload meluccio --update-env || pm2 start "${PM2_CONFIG}" --only meluccio
+        pm2 save
+    fi
     
     echo -e "\n${GREEN}✅ Applicazione aggiornata${NC}"
     read -p "Premi Enter per continuare"

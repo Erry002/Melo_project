@@ -46,6 +46,8 @@ const DEFAULT_ROLE_METADATA = Object.freeze({
   }
 });
 
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
 class DatabaseManager {
   constructor() {
     this.db = null;
@@ -189,6 +191,16 @@ class DatabaseManager {
         FOREIGN KEY (role_id) REFERENCES server_roles(id) ON DELETE RESTRICT,
         FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL
       );
+
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token_hash TEXT NOT NULL,
+        expires_at DATETIME NOT NULL,
+        consumed_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
     `);
 
     await this.db.exec(`
@@ -207,6 +219,12 @@ class DatabaseManager {
 
       CREATE INDEX IF NOT EXISTS idx_role_permissions_role
         ON server_role_permissions(role_id);
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_tokens_hash
+        ON password_reset_tokens(token_hash);
+
+      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user
+        ON password_reset_tokens(user_id);
     `);
 
     await this.addColumnIfMissing('users', "global_role TEXT DEFAULT 'creator'");
@@ -296,6 +314,81 @@ class DatabaseManager {
       ...roleRow,
       permissions: new Set(uniquePermissions)
     };
+  }
+
+  async createPasswordResetToken(userId, options = {}) {
+    if (!userId) {
+      throw new Error('Utente non valido');
+    }
+
+    const ttlMinutesRaw = Number.parseInt(options.ttlMinutes, 10);
+    const ttlMinutes = Number.isFinite(ttlMinutesRaw) ? Math.max(5, ttlMinutesRaw) : 60;
+    const rawToken = crypto.randomBytes(48).toString('hex');
+    const tokenHash = hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
+
+    await this.db.run(
+      `DELETE FROM password_reset_tokens
+       WHERE user_id = ?
+         AND (consumed_at IS NOT NULL OR expires_at <= CURRENT_TIMESTAMP)`,
+      [userId]
+    );
+
+    const result = await this.db.run(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES (?, ?, ?)`,
+      [userId, tokenHash, expiresAt]
+    );
+
+    return {
+      token: rawToken,
+      tokenId: result.lastID,
+      expiresAt
+    };
+  }
+
+  async getValidPasswordResetToken(rawToken) {
+    if (!rawToken) {
+      return null;
+    }
+
+    const tokenHash = hashToken(rawToken);
+    return this.db.get(
+      `SELECT id, user_id, expires_at
+       FROM password_reset_tokens
+       WHERE token_hash = ?
+         AND consumed_at IS NULL
+         AND expires_at > CURRENT_TIMESTAMP
+       LIMIT 1`,
+      [tokenHash]
+    );
+  }
+
+  async markPasswordResetTokenUsed(tokenId) {
+    if (!tokenId) {
+      return;
+    }
+
+    await this.db.run(
+      `UPDATE password_reset_tokens
+       SET consumed_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [tokenId]
+    );
+  }
+
+  async invalidatePasswordResetTokens(userId) {
+    if (!userId) {
+      return;
+    }
+
+    await this.db.run(
+      `UPDATE password_reset_tokens
+       SET consumed_at = CURRENT_TIMESTAMP
+       WHERE user_id = ?
+         AND consumed_at IS NULL`,
+      [userId]
+    );
   }
 
   async getRoleByKey(serverId, key) {
