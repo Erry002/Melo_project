@@ -6,8 +6,9 @@ import PropTypes from 'prop-types';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { findBestUrl } from '../utils/connection.js';
 
-const PasswordResetModal = ({ isOpen, onClose }) => {
+const PasswordResetModal = ({ isOpen, onClose, prefillToken, autoVerify }) => {
   const [step, setStep] = useState('request');
+  const [mode, setMode] = useState('password'); // 'password' | 'username'
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -15,20 +16,41 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
   const [error, setError] = useState(null);
   const [message, setMessage] = useState('');
   const [debugInfo, setDebugInfo] = useState(null);
+  const [pendingAutoVerify, setPendingAutoVerify] = useState(false);
 
   // Ripristina lo stato interno ad ogni apertura
   useEffect(() => {
     if (isOpen) {
-      setStep('request');
+      const hasPrefill = Boolean(prefillToken);
+      setStep(hasPrefill ? 'verify' : 'request');
+      setMode(hasPrefill ? 'password' : 'password');
       setEmail('');
-      setToken('');
+      setToken(prefillToken || '');
       setNewPassword('');
       setLoading(false);
       setError(null);
-      setMessage('');
+      setMessage(hasPrefill ? 'Abbiamo precompilato il token ricevuto via email. Confermalo qui sotto per impostare una nuova password.' : '');
       setDebugInfo(null);
+      setPendingAutoVerify(hasPrefill && autoVerify);
+    } else {
+      setPendingAutoVerify(false);
     }
-  }, [isOpen]);
+  }, [isOpen, prefillToken, autoVerify]);
+
+  useEffect(() => {
+    if (!isOpen || !pendingAutoVerify || !token.trim()) {
+      return;
+    }
+
+    const run = async () => {
+      await performVerify(token.trim());
+    };
+
+    run().finally(() => {
+      setPendingAutoVerify(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, pendingAutoVerify, token]);
 
   if (!isOpen) {
     return null;
@@ -44,28 +66,76 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
       setLoading(true);
       setError(null);
       const baseUrl = await findBestUrl();
-      const response = await fetch(`${baseUrl}/api/auth/forgot-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email: email.trim() })
-      });
+      let response;
+      if (mode === 'username') {
+        response = await fetch(`${baseUrl}/api/auth/forgot-username`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email: email.trim() })
+        });
+      } else {
+        response = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email: email.trim() })
+        });
+      }
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(data?.error || 'Impossibile richiedere il reset della password.');
       }
 
-      setMessage(data?.message || "Se i dati forniti sono corretti riceverai un'email con le istruzioni per il reset.");
-      if (data?.debug?.resetToken) {
-        setToken(data.debug.resetToken);
-        setDebugInfo(data.debug);
+      if (mode === 'username') {
+        const serverMessage = data?.message || "Se l'email è associata a un account, riceverai il tuo username.";
+        setMessage(serverMessage);
+        setStep('success');
+      } else {
+        const serverMessage = data?.message || "Se i dati forniti sono corretti riceverai un'email con le istruzioni per il reset.";
+        setMessage(`${serverMessage} Copia il token ricevuto e incollalo qui sotto per confermarlo.`);
+        if (data?.debug?.resetToken) {
+          setToken(data.debug.resetToken);
+          setDebugInfo(data.debug);
+        }
+        setStep('verify');
       }
-      setStep('verify');
     } catch (requestError) {
       console.error('Errore richiesta reset password:', requestError);
       setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const performVerify = async (value) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const baseUrl = await findBestUrl();
+      const response = await fetch(`${baseUrl}/api/auth/reset-password/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token: value })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.valid) {
+        throw new Error(data?.error || 'Token non valido o scaduto.');
+      }
+
+      setMessage('Token verificato! Ora imposta una nuova password.');
+      setStep('reset');
+      return true;
+    } catch (verifyError) {
+      console.error('Errore verifica token reset password:', verifyError);
+      setError(verifyError.message);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -77,31 +147,7 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-      const baseUrl = await findBestUrl();
-      const response = await fetch(`${baseUrl}/api/auth/reset-password/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ token: token.trim() })
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data?.valid) {
-        throw new Error(data?.error || 'Token non valido o scaduto.');
-      }
-
-      setMessage('Token valido! Ora imposta una nuova password.');
-      setStep('reset');
-    } catch (verifyError) {
-      console.error('Errore verifica token reset password:', verifyError);
-      setError(verifyError.message);
-    } finally {
-      setLoading(false);
-    }
+    await performVerify(token.trim());
   };
 
   const handleReset = async (event) => {
@@ -141,7 +187,7 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-800">Recupera password</h2>
+          <h2 className="text-lg font-semibold text-slate-800">Recupera credenziali</h2>
           <button
             type="button"
             onClick={onClose}
@@ -153,7 +199,7 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
         </div>
 
         <p className="mt-2 text-sm text-slate-500">
-          Segui i passaggi per ricevere un link e impostare una nuova password sicura.
+          Scegli cosa recuperare: invieremo le informazioni all&apos;email associata all&apos;account.
         </p>
 
         {error && (
@@ -187,6 +233,30 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
 
         {step === 'request' && (
           <form onSubmit={handleRequest} className="mt-6 space-y-4">
+            <div className="flex gap-3 text-sm">
+              <label className={`flex flex-1 items-center gap-2 rounded-xl border px-3 py-2 transition ${mode === 'password' ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>
+                <input
+                  type="radio"
+                  name="recovery-mode"
+                  value="password"
+                  checked={mode === 'password'}
+                  onChange={() => setMode('password')}
+                  className="accent-indigo-500"
+                />
+                Recupera password
+              </label>
+              <label className={`flex flex-1 items-center gap-2 rounded-xl border px-3 py-2 transition ${mode === 'username' ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>
+                <input
+                  type="radio"
+                  name="recovery-mode"
+                  value="username"
+                  checked={mode === 'username'}
+                  onChange={() => setMode('username')}
+                  className="accent-indigo-500"
+                />
+                Recupera username
+              </label>
+            </div>
             <div className="space-y-2">
               <label htmlFor="reset-email" className="text-sm font-medium text-slate-600">
                 Email associata all&apos;account
@@ -210,12 +280,16 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
                   : 'bg-indigo-500 text-white hover:bg-indigo-600'
               }`}
             >
-              {loading ? 'Invio in corso...' : 'Invia link di reset'}
+              {loading
+                ? 'Invio in corso...'
+                : mode === 'username'
+                  ? 'Invia promemoria username'
+                  : 'Invia link e token'}
             </button>
           </form>
         )}
 
-        {step === 'verify' && (
+        {step === 'verify' && mode === 'password' && (
           <form onSubmit={handleVerify} className="mt-6 space-y-4">
             <div className="space-y-2">
               <label htmlFor="reset-token" className="text-sm font-medium text-slate-600">
@@ -256,7 +330,7 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
           </form>
         )}
 
-        {step === 'reset' && (
+        {step === 'reset' && mode === 'password' && (
           <form onSubmit={handleReset} className="mt-6 space-y-4">
             <div className="space-y-2">
               <label htmlFor="reset-password" className="text-sm font-medium text-slate-600">
@@ -289,7 +363,9 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
         {step === 'success' && (
           <div className="mt-6 space-y-4 text-sm text-slate-600">
             <p>
-              La tua password è stata aggiornata. Puoi chiudere questa finestra e tornare al login.
+              {mode === 'username'
+                ? 'Controlla la tua email: troverai il tuo username registrato.'
+                : 'La tua password è stata aggiornata. Puoi chiudere questa finestra e tornare al login.'}
             </p>
             <button
               type="button"
@@ -307,7 +383,9 @@ const PasswordResetModal = ({ isOpen, onClose }) => {
 
 PasswordResetModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
-  onClose: PropTypes.func.isRequired
+  onClose: PropTypes.func.isRequired,
+  prefillToken: PropTypes.string,
+  autoVerify: PropTypes.bool
 };
 
 const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
@@ -318,6 +396,7 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [resetModalConfig, setResetModalConfig] = useState({ prefillToken: '', autoVerify: false });
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -342,6 +421,29 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
       onSuccess(result.user);
     }
   };
+
+  useEffect(() => {
+    try {
+      const currentUrl = new URL(window.location.href);
+      const tokenParam = currentUrl.searchParams.get('token');
+      const isResetRoute = currentUrl.pathname.includes('reset-password');
+
+      if (tokenParam || isResetRoute) {
+        setResetModalConfig({
+          prefillToken: tokenParam || '',
+          autoVerify: Boolean(tokenParam)
+        });
+        setShowResetModal(true);
+
+        currentUrl.searchParams.delete('token');
+        const sanitizedSearch = currentUrl.searchParams.toString();
+        const newUrl = `/${sanitizedSearch ? `?${sanitizedSearch}` : ''}`;
+        window.history.replaceState({}, '', newUrl);
+      }
+    } catch (urlError) {
+      console.error('Errore nel parsing URL reset password:', urlError);
+    }
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -408,11 +510,14 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
           <div className="flex justify-end text-xs">
             <button
               type="button"
-              onClick={() => setShowResetModal(true)}
+              onClick={() => {
+                setResetModalConfig({ prefillToken: '', autoVerify: false });
+                setShowResetModal(true);
+              }}
               className="font-medium text-indigo-500 hover:text-indigo-600"
               disabled={loading}
             >
-              Password dimenticata?
+              Recupera credenziali
             </button>
           </div>
         </div>
@@ -457,7 +562,12 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
 
         <PasswordResetModal
           isOpen={showResetModal}
-          onClose={() => setShowResetModal(false)}
+          onClose={() => {
+            setShowResetModal(false);
+            setResetModalConfig({ prefillToken: '', autoVerify: false });
+          }}
+          prefillToken={resetModalConfig.prefillToken}
+          autoVerify={resetModalConfig.autoVerify}
         />
     </div>
   );

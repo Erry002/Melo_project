@@ -8,6 +8,10 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### ✨ Added
+- Flusso unificato di recupero credenziali: scelta tra recupero password (token via email) e promemoria username
+- Endpoint backend per promemoria username (`POST /api/auth/forgot-username`) e invio email dedicato
+- Modal frontend di recupero credenziali con parsing automatico del token da URL e auto-verifica
+- Invio del token di reset anche nel corpo email (oltre al link) per copia/incolla manuale
 - Utility safe-area e classi layout mobile in `Meluccio-frontend/src/Global.css`
 - Persistenza cronologia messaggi per canale con bottoni di svuotamento chat
 - Schema ruoli/membri per stanza (`database/database.js`) con permessi granulari e owner di default

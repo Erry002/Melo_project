@@ -8,7 +8,7 @@ import dbManager, { DatabaseUtils } from '../database/database.js';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import { sendPasswordResetEmail } from '../utils/emailService.js';
+import { sendPasswordResetEmail, sendUsernameReminderEmail } from '../utils/emailService.js';
 
 const router = express.Router();
 
@@ -16,6 +16,7 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'MeloChat_Super_Secret_Key_2024';
 const JWT_EXPIRES_IN = '7d';
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = Number.parseInt(process.env.PASSWORD_RESET_TTL_MINUTES || '60', 10) || 60;
+const PASSWORD_RESET_DEBUG = process.env.PASSWORD_RESET_DEBUG === 'true';
 
 // Rate limiting - Commentato per compatibilità Node.js
 /*
@@ -308,6 +309,7 @@ router.post('/auth/forgot-password', generalLimiter, async (req, res) => {
                 to: user.email,
                 displayName: user.display_name || user.username,
                 resetLink,
+                resetToken: token,
                 expiresAt
             });
         } catch (error) {
@@ -319,15 +321,19 @@ router.post('/auth/forgot-password', generalLimiter, async (req, res) => {
             message: "Se i dati forniti sono corretti riceverai un'email con le istruzioni per il reset."
         };
 
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.NODE_ENV !== 'production' || PASSWORD_RESET_DEBUG) {
             responsePayload.debug = { resetToken: token, resetLink, expiresAt };
         }
 
         if (emailSendError) {
-            if (process.env.NODE_ENV === 'production') {
+            if (process.env.NODE_ENV === 'production' && !PASSWORD_RESET_DEBUG) {
                 return res.status(500).json({ error: 'Impossibile inviare email di reset. Riprova più tardi.' });
             }
             responsePayload.warning = 'Invio email non configurato, usa il token di debug per testare il flusso.';
+        }
+
+        if (process.env.NODE_ENV !== 'production' || PASSWORD_RESET_DEBUG) {
+            console.log('[auth] Password reset token generato:', token);
         }
 
         await logActivity(user.id, 'password_reset_requested', { by: lookup }, req.ip);
@@ -335,6 +341,59 @@ router.post('/auth/forgot-password', generalLimiter, async (req, res) => {
         return res.json(responsePayload);
     } catch (error) {
         console.error('Errore richiesta reset password:', error);
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
+});
+
+// Richiedi recupero username
+router.post('/auth/forgot-username', generalLimiter, async (req, res) => {
+    try {
+        const { email } = req.body || {};
+
+        if (!email || typeof email !== 'string' || email.trim().length === 0) {
+            return res.status(400).json({ error: 'Email richiesta' });
+        }
+
+        const lookup = email.trim().toLowerCase();
+        const user = await dbManager.db.get(`
+            SELECT id, email, username, display_name
+            FROM users
+            WHERE LOWER(email) = ?
+        `, [lookup]);
+
+        // Risposta generica per sicurezza
+        const responsePayload = {
+            message: "Se l'email è associata a un account, riceverai il tuo username." 
+        };
+
+        if (!user) {
+            return res.json(responsePayload);
+        }
+
+        let emailSendError = null;
+        try {
+            await sendUsernameReminderEmail({
+                to: user.email,
+                username: user.username,
+                displayName: user.display_name || user.username
+            });
+        } catch (error) {
+            emailSendError = error;
+            console.error('Errore invio email recupero username:', error);
+        }
+
+        if (emailSendError) {
+            if (process.env.NODE_ENV === 'production' && !PASSWORD_RESET_DEBUG) {
+                return res.status(500).json({ error: 'Impossibile inviare l\'email di recupero. Riprova più tardi.' });
+            }
+            responsePayload.warning = 'Invio email non configurato, abilita SMTP per ricevere il promemoria username.';
+        }
+
+        await logActivity(user.id, 'username_recovery_requested', { email: user.email }, req.ip);
+
+        return res.json(responsePayload);
+    } catch (error) {
+        console.error('Errore recupero username:', error);
         return res.status(500).json({ error: 'Errore interno del server' });
     }
 });
@@ -385,11 +444,16 @@ router.post('/auth/reset-password', generalLimiter, async (req, res) => {
 
         const hashedPassword = await DatabaseUtils.hashPassword(newPassword);
 
-        await dbManager.db.run(`
+        const updateResult = await dbManager.db.run(`
             UPDATE users
             SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `, [hashedPassword, tokenRecord.user_id]);
+
+        if (!updateResult || updateResult.changes === 0) {
+            console.error('[auth] Nessuna password aggiornata per user_id:', tokenRecord.user_id);
+            return res.status(500).json({ error: 'Impossibile aggiornare la password. Riprova.' });
+        }
 
         await dbManager.markPasswordResetTokenUsed(tokenRecord.id);
         await dbManager.invalidatePasswordResetTokens(tokenRecord.user_id);

@@ -48,6 +48,7 @@
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "dotenv": "^16.4.6",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.15",
     "multer": "^2.0.2",

@@ -2,10 +2,10 @@
 > **Diario di bordo dello sviluppo** | Ultima modifica: 27 Novembre 2025
 
 ## 🎯 STATUS PROGETTO
-- **Stato attuale**: ✅ Audio streaming stabile · 🚧 Ottimizzazione UI/UX mobile in corso
+- **Stato attuale**: ✅ Audio streaming stabile · 🚧 Ottimizzazione UI/UX mobile · ✅ Flusso recupero credenziali (password/token e promemoria username)
 - **Ultima sessione**: Kickoff Milestone 1 – Audit responsivo & piano di lavoro
 - **Prossimi obiettivi**: Milestone 2 – Fondamenta responsive (layout & spacing)
-- **Branch corrente**: `feature/mobile-ui`
+- **Branch corrente**: `test`
 
 ---
 
@@ -32,7 +32,22 @@
 
 ## 📅 CRONOLOGIA SVILUPPO
 
-### 🛠️ Sessione 6 Dicembre 2025 - IN CORSO
+### 🛠️ Sessione 11 Dicembre 2025 - IN CORSO
+**Focus**: Recupero credenziali (password + username), email SMTP e flusso token
+
+#### Attività completate:
+1. Aggiunto endpoint backend `POST /api/auth/forgot-username` con email di promemoria
+2. Esteso `sendPasswordResetEmail` per includere il token in chiaro oltre al link
+3. Creato `sendUsernameReminderEmail` per recap username e logging debug
+4. Modal frontend unificato: selezione recupero password/username, parsing token da URL e auto-verifica
+5. Gestione `PASSWORD_RESET_DEBUG` e log token per ambienti di test
+
+#### TODO immediati:
+- [ ] Test end-to-end multi-browser del flusso password (richiesta → token → reset → login)
+- [ ] Test recap username via SMTP con provider alternativi (non-Gmail) per deliverability
+- [ ] Piccole migliorie UX copy nel modal (messaggi di conferma differenziati)
+
+### 🛠️ Sessione 6 Dicembre 2025 - COMPLETATA
 **Focus**: Preparazione Raspberry Pi & consolidamento branch `test`
 
 #### Attività completate:
