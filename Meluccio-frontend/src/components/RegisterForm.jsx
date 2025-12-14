@@ -95,13 +95,9 @@ const RegisterForm = ({ onSuccess, onSwitchToLogin }) => {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2 text-center sm:text-left">
-        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">
-          <span aria-hidden>📝</span>
-          Nuovo account
-        </div>
-        <p className="text-sm text-slate-500">
-          Compila i campi richiesti per creare il tuo profilo Melo Chat.
+      <div className="space-y-2 text-left leading-normal">
+        <p className="text-sm text-slate-600">
+          Compila i campi per creare il tuo profilo Melo Chat.
         </p>
       </div>
 

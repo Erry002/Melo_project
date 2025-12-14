@@ -446,14 +446,10 @@ const LoginForm = ({ onSuccess, onSwitchToRegister }) => {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-3 text-center sm:text-left">
-        <div className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-600 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wide">
-          <span aria-hidden>🔒</span>
-          Accesso protetto
-        </div>
-        <p className="text-sm text-slate-500">
-          Inserisci le tue credenziali per continuare nel tuo studio virtuale.
+    <div className="space-y-4">
+      <div className="text-left leading-normal">
+        <p className="text-sm text-slate-600">
+          Accedi con le credenziali registrate.
         </p>
       </div>
 

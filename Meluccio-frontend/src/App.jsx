@@ -1802,89 +1802,109 @@ const AuthenticatedApp = () => {
 };
 
 const UnauthenticatedApp = ({ mode, setMode, registerSuccess, onRegistered }) => (
-  <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-700 to-indigo-900 px-4 py-10 sm:px-6 sm:py-16 flex items-center">
-    <div className="max-w-5xl w-full mx-auto grid gap-10 lg:grid-cols-[minmax(0,1fr)_420px] items-center">
-      <div className="order-2 lg:order-1 text-center lg:text-left text-white space-y-5">
-        <span className="text-sm uppercase tracking-[0.3em] text-indigo-100/80">Melo Chat</span>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-          Audio chat in tempo reale dovunque ti trovi
-        </h1>
-        <p className="text-base text-indigo-50/90 max-w-xl mx-auto lg:mx-0">
-          Accedi dal tuo smartphone o dal desktop e unisciti in pochi secondi alle stanze vocali del tuo team.
-        </p>
-        <div className="flex flex-wrap justify-center lg:justify-start gap-3 text-xs sm:text-sm text-indigo-50/80">
-          <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur">
-            🔐 Token sicuro
-          </span>
-          <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur">
-            📱 UI mobile-friendly
-          </span>
-          <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 backdrop-blur">
-            🎚️ Audio low-latency
-          </span>
+  <div className="auth-hero">
+    <div className="auth-hero__waves" aria-hidden>
+      <span className="auth-wave auth-wave--1" />
+      <span className="auth-wave auth-wave--2" />
+      <span className="auth-wave auth-wave--3" />
+    </div>
+
+    <div className="auth-hero__content px-4 py-10 sm:px-6 sm:py-16">
+      <div className="max-w-5xl w-full mx-auto grid gap-10 lg:grid-cols-[minmax(0,1fr)_420px] items-center">
+        <div className="order-1 lg:order-1 text-center lg:text-left text-white space-y-4 sm:space-y-5">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Melo Chat</h1>
+          <p className="text-base sm:text-xl text-indigo-50/95 font-medium max-w-2xl mx-auto lg:mx-0">
+            Audio chat in tempo reale con stanze vocali pronte, ovunque tu sia. Open source, accesso rapido e ruoli gestiti: crea la tua sala audio in pochi secondi.
+          </p>
+          <div className="flex justify-center lg:justify-start">
+            <a
+              href="https://github.com/erry002/Melo_project"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-full border border-indigo-100/60 bg-white px-6 py-3 text-sm font-semibold text-indigo-700 shadow-lg shadow-indigo-900/25 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-xl"
+            >
+              <span className="mr-2 inline-flex h-4 w-4 items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden focusable="false" className="h-4 w-4">
+                  <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.1 3.29 9.42 7.86 10.95.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.87-1.54-3.87-1.54-.53-1.35-1.29-1.71-1.29-1.71-1.06-.73.08-.72.08-.72 1.17.08 1.78 1.2 1.78 1.2 1.04 1.77 2.74 1.26 3.4.96.1-.75.41-1.26.74-1.55-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.47.11-3.07 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.6.23 2.78.11 3.07.74.8 1.18 1.83 1.18 3.09 0 4.41-2.68 5.39-5.24 5.67.42.36.8 1.07.8 2.16 0 1.56-.02 2.82-.02 3.2 0 .31.21.68.8.56A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
+                </svg>
+              </span>
+              Scarica da GitHub
+            </a>
+          </div>
+          <div className="flex flex-wrap justify-center lg:justify-start gap-2 text-xs sm:text-sm text-indigo-50/85">
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/25 bg-white/5 px-3 py-1 backdrop-blur">
+              🚀 Open source
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/25 bg-white/5 px-3 py-1 backdrop-blur">
+              🛠️ Self-hosted
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/25 bg-white/5 px-3 py-1 backdrop-blur">
+              🔒 Token sicuro
+            </span>
+          </div>
         </div>
-      </div>
 
-      <div className="order-1 lg:order-2 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/40 p-6 sm:p-8">
-        <div className="mb-6 space-y-4">
-          <div className="flex gap-1 rounded-2xl bg-slate-100 p-1">
-            <button
-              type="button"
-              onClick={() => setMode('login')}
-              className={`w-full rounded-xl py-2 text-sm font-semibold transition-all ${
-                mode === 'login'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-500 hover:text-indigo-500'
-              }`}
-              aria-pressed={mode === 'login'}
-            >
-              Accedi
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('register')}
-              className={`w-full rounded-xl py-2 text-sm font-semibold transition-all ${
-                mode === 'register'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-500 hover:text-indigo-500'
-              }`}
-              aria-pressed={mode === 'register'}
-            >
-              Registrati
-            </button>
-          </div>
-
-          <div className="space-y-1">
-            <h2 className="text-2xl font-semibold text-slate-900">
-              {mode === 'login' ? 'Bentornato nel tuo studio audio' : 'Crea il tuo profilo Melo Chat'}
-            </h2>
-            <p className="text-sm text-slate-500">
-              {mode === 'login'
-                ? 'Usa le credenziali con cui hai registrato il tuo account.'
-                : 'Bastano pochi dettagli per iniziare a trasmettere la tua voce.'}
-            </p>
-          </div>
-
-          {mode === 'login' && registerSuccess && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-600">
-              ✅
-              {' '}
-              {registerSuccess}
+        <div className="order-2 lg:order-2 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/40 p-6 sm:p-8">
+          <div className="mb-6 space-y-4">
+            <div className="flex gap-1 rounded-2xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setMode('login')}
+                className={`w-full rounded-xl py-2 text-sm font-semibold transition-all ${
+                  mode === 'login'
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-500 hover:text-indigo-500'
+                }`}
+                aria-pressed={mode === 'login'}
+              >
+                Accedi
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('register')}
+                className={`w-full rounded-xl py-2 text-sm font-semibold transition-all ${
+                  mode === 'register'
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-500 hover:text-indigo-500'
+                }`}
+                aria-pressed={mode === 'register'}
+              >
+                Registrati
+              </button>
             </div>
+
+            <div className="space-y-1">
+              <h2 className="text-2xl font-semibold text-slate-900">
+                {mode === 'login' ? 'Bentornato nel tuo studio audio' : 'Crea il tuo profilo Melo Chat'}
+              </h2>
+              {mode !== 'login' && (
+                <p className="text-sm text-slate-500">
+                  Bastano pochi dettagli per iniziare a trasmettere la tua voce.
+                </p>
+              )}
+            </div>
+
+            {mode === 'login' && registerSuccess && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-600">
+                ✅
+                {' '}
+                {registerSuccess}
+              </div>
+            )}
+          </div>
+
+          {mode === 'login' ? (
+            <LoginForm
+              onSuccess={() => {}}
+              onSwitchToRegister={() => setMode('register')}
+            />
+          ) : (
+            <RegisterForm
+              onSuccess={(message) => onRegistered(message || 'Registrazione completata con successo!')}
+              onSwitchToLogin={() => setMode('login')}
+            />
           )}
         </div>
-
-        {mode === 'login' ? (
-          <LoginForm
-            onSuccess={() => {}}
-            onSwitchToRegister={() => setMode('register')}
-          />
-        ) : (
-          <RegisterForm
-            onSuccess={(message) => onRegistered(message || 'Registrazione completata con successo!')}
-            onSwitchToLogin={() => setMode('login')}
-          />
-        )}
       </div>
     </div>
   </div>
