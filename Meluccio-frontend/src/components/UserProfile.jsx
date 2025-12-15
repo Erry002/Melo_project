@@ -7,8 +7,8 @@ import { useAuth } from '../hooks/useAuth.jsx';
 
 const AVATAR_ACCEPT = 'image/png, image/jpeg, image/webp';
 
-const UserProfile = ({ onClose }) => {
-  const { user, updateProfile, changePassword, uploadAvatar, loading, error, clearError } = useAuth();
+const UserProfile = ({ onClose, onLogout }) => {
+  const { user, updateProfile, changePassword, uploadAvatar, logout, loading, error, clearError } = useAuth();
   const [profileData, setProfileData] = useState({
     display_name: user?.display_name || '',
     email: user?.email || ''
@@ -111,6 +111,16 @@ const UserProfile = ({ onClose }) => {
     } else if (result.error) {
       setProfileMessage(result.error);
     }
+  };
+
+  const handleLogoutClick = async () => {
+    resetFeedback();
+    if (onLogout) {
+      await onLogout();
+    } else {
+      await logout();
+    }
+    onClose();
   };
 
   return (
@@ -287,6 +297,25 @@ const UserProfile = ({ onClose }) => {
                 </button>
               </form>
             </section>
+
+            <section className="bg-slate-50 rounded-2xl border border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-800 mb-2">Sessione</h3>
+              <p className="text-sm text-slate-500 mb-4">
+                Esci dal tuo account su questo dispositivo.
+              </p>
+              <button
+                type="button"
+                onClick={handleLogoutClick}
+                disabled={loading}
+                className={`px-6 py-3 rounded-xl font-semibold transition ${
+                  loading
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    : 'bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-500/30'
+                }`}
+              >
+                Logout
+              </button>
+            </section>
           </div>
         </div>
       </div>
@@ -295,7 +324,8 @@ const UserProfile = ({ onClose }) => {
 };
 
 UserProfile.propTypes = {
-  onClose: PropTypes.func.isRequired
+  onClose: PropTypes.func.isRequired,
+  onLogout: PropTypes.func
 };
 
 export default UserProfile;

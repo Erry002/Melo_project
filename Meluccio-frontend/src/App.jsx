@@ -604,7 +604,7 @@ const AuthenticatedApp = () => {
     });
   }, []);
 
-  const handleInviteUser = useCallback((_targetUser) => {
+  const handleInviteUser = useCallback(() => {
     setChatError('Funzione amicizia disponibile a breve.');
   }, []);
 
@@ -1206,89 +1206,81 @@ const AuthenticatedApp = () => {
 
           <div className="px-4 py-4 sm:px-8 sm:py-6 flex flex-col gap-4 lg:grid lg:grid-cols-[320px_1fr]">
             <aside
-              className={`space-y-6 transition-all duration-200 ease-out order-2 lg:order-1 ${
+              className={`transition-all duration-200 ease-out order-2 lg:order-1 mobile-panel overflow-hidden min-h-0 sidebar-panel ${
                 isSidebarOpen ? 'block' : 'hidden'
               } lg:block`}
               id="sidebar-panel"
             >
+              <div className="h-full overflow-y-auto touch-scroll px-4 py-4 sm:px-5 sm:py-5 space-y-6">
               <section className="bg-white rounded-2xl shadow-inner border border-slate-100 p-5">
                 <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
-                  Azioni rapide
+                  Profilo
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+                <button
+                  type="button"
+                  onClick={() => runSidebarAction(() => setShowProfile(true))}
+                  className="w-full flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-left hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors min-w-0"
+                  aria-label="Apri profilo"
+                  title="Apri profilo"
+                >
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-indigo-600/10 text-indigo-700 flex items-center justify-center font-bold shrink-0">
+                    {user?.avatar ? (
+                      <img src={`${user.avatar}?t=${Date.now()}`} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{(displayName || 'M')[0]}</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-900 truncate">{displayName}</div>
+                    <div className="text-xs text-slate-500 truncate">@{user?.username || 'utente'}</div>
+                  </div>
+                  <span className="text-slate-400 shrink-0">›</span>
+                </button>
+
+                <div className="mt-4 grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={() => runSidebarAction(handleToggleConnection)}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors"
+                    aria-label={connectionStatus === 'connected' ? 'Disconnetti' : 'Connetti'}
+                    title={connectionStatus === 'connected' ? 'Disconnetti' : 'Connetti'}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors min-w-0"
                     disabled={!socketRef.current}
                   >
-                    <span className="text-lg">{connectionStatus === 'connected' ? '🔌' : '⚡️'}</span>
-                    <span className="text-sm font-semibold">
-                      {connectionStatus === 'connected' ? 'Disconnetti' : 'Riconnetti'}
+                    <span className="text-lg shrink-0">{connectionStatus === 'connected' ? '🔌' : '⚡️'}</span>
+                    <span className="text-sm font-semibold flex-1 min-w-0 whitespace-normal leading-tight">
+                      {connectionStatus === 'connected' ? 'Disconnetti' : 'Connetti'}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(handleClearChat)}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
-                    disabled={isClearingChat || !currentChannelId || messages.length === 0}
-                  >
-                    <span className="text-lg">🧹</span>
-                    <span className="text-sm font-semibold">
-                      Svuota chat
-                    </span>
-                  </button>
+
                   <button
                     type="button"
                     onClick={() => runSidebarAction(async () => {
-                      if (connectionStatus !== 'connected' || isRecording) {
+                      if (isRecording) {
+                        stopAudio();
+                        return;
+                      }
+                      if (connectionStatus !== 'connected') {
                         return;
                       }
                       await startAudio();
                     })}
-                    className={`mic-button flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
-                      connectionStatus !== 'connected' || isRecording
-                        ? 'border-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/60'
-                    }`}
-                    disabled={connectionStatus !== 'connected' || isRecording}
-                  >
-                    <span className="text-lg">🎙️</span>
-                    <span className="text-sm font-semibold">Attiva microfono</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(() => {
-                      if (isRecording) {
-                        stopAudio();
-                      }
-                    })}
-                    className={`mic-button flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                    aria-label={isRecording ? 'Disattiva microfono' : 'Attiva microfono'}
+                    title={isRecording ? 'Disattiva microfono' : 'Attiva microfono'}
+                    className={`mic-button flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors min-w-0 ${
                       isRecording
                         ? 'mic-button--recording border-emerald-400 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-200/60'
-                        : 'border-slate-200 text-slate-400 cursor-not-allowed'
+                        : connectionStatus !== 'connected'
+                          ? 'border-slate-200 text-slate-400 cursor-not-allowed'
+                          : 'border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/60'
                     }`}
-                    disabled={!isRecording}
+                    disabled={connectionStatus !== 'connected' && !isRecording}
                     aria-pressed={isRecording}
                   >
-                    <span className="text-lg">🔇</span>
-                    <span className="text-sm font-semibold">Disattiva microfono</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(() => setShowProfile(true))}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-slate-600 hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors"
-                  >
-                    <span className="text-lg">👤</span>
-                    <span className="text-sm font-semibold">Profilo utente</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(handleLogout)}
-                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left text-rose-600 hover:border-rose-300 hover:bg-rose-50 transition-colors"
-                  >
-                    <span className="text-lg">🚪</span>
-                    <span className="text-sm font-semibold">Esci</span>
+                    <span className="text-lg shrink-0">{isRecording ? '🔇' : '🎙️'}</span>
+                    <span className="text-sm font-semibold flex-1 min-w-0 whitespace-normal leading-tight">
+                      {isRecording ? 'Disattiva microfono' : 'Attiva microfono'}
+                    </span>
                   </button>
                 </div>
               </section>
@@ -1677,10 +1669,11 @@ const AuthenticatedApp = () => {
                   </>
                 )}
               </section>
+              </div>
             </aside>
 
-            <main className="order-1 lg:order-2 relative flex flex-col min-h-[70vh] mobile-panel overflow-hidden">
-              <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 sticky-mobile-header bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+            <main className="order-1 lg:order-2 relative flex flex-col min-h-0 mobile-panel overflow-hidden chat-panel">
+              <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 sticky-mobile-header bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-t-2xl">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <h2 className="text-lg sm:text-xl font-semibold text-slate-700 flex items-center gap-2">
                     💬 Conversazione
@@ -1721,34 +1714,48 @@ const AuthenticatedApp = () => {
                 )}
               </div>
 
-              <div className="flex-1 overflow-y-auto touch-scroll px-4 sm:px-6 py-4 sm:py-6 space-y-4 bg-gradient-to-b from-white to-slate-50 rounded-3xl border border-slate-100 shadow-inner my-4">
+              <div className="flex-1 min-h-0 overflow-y-auto touch-scroll px-4 sm:px-6 py-4 sm:py-6 space-y-4 chat-surface">
                 {messages.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-slate-400 text-sm">
                     Nessun messaggio. Inizia la conversazione!
                   </div>
                 ) : (
                   messages.map((message) => (
+                    (() => {
+                      const isOwnMessage = (message.userId && message.userId === user?.id)
+                        || (message.username && message.username === user?.username)
+                        || (message.user && message.user === user?.username)
+                        || (message.displayName && message.displayName === displayName);
+                      const initials = (message.displayName || message.user || message.username || '?').slice(0, 2).toUpperCase();
+                      return (
                     <div
                       key={message.id || `${message.timestamp}-${message.user || message.username}`}
-                      className="bg-white shadow-sm border border-slate-100 rounded-2xl px-5 py-4"
+                      className={`message-row ${isOwnMessage ? 'message-row--own' : ''}`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-semibold text-indigo-500">
-                          {message.displayName || message.user || message.username}
-                        </span>
-                        <span className="text-xs text-slate-400">{formatTime(message.timestamp)}</span>
+                      <div className={`message-bubble ${isOwnMessage ? 'message-bubble--own' : 'message-bubble--other'}`}>
+                        <div className="message-meta">
+                          <div className="message-avatar" aria-hidden>
+                            <span>{initials}</span>
+                          </div>
+                          <div className="message-header">
+                            <span className="message-author">{message.displayName || message.user || message.username}</span>
+                            <span className="message-time">{formatTime(message.timestamp)}</span>
+                          </div>
+                        </div>
+                        <p className="message-text">
+                          {message.text}
+                        </p>
                       </div>
-                      <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
-                        {message.text}
-                      </p>
                     </div>
+                      );
+                    })()
                   ))
                 )}
               </div>
 
               <form
                 onSubmit={sendMessage}
-                className="border-t border-slate-100 bg-white/95 sticky-mobile-footer safe-bottom px-4 py-4 sm:px-6 sm:py-6 flex flex-col gap-3"
+                className="border-t border-slate-100 bg-white/95 sticky-mobile-footer safe-bottom px-4 py-4 sm:px-6 sm:py-6 flex flex-col gap-3 rounded-b-2xl"
               >
                 <div className="flex flex-col sm:flex-row gap-3">
                   <input
@@ -1779,7 +1786,7 @@ const AuthenticatedApp = () => {
           </div>
         </div>
       </div>
-      {showProfile && <UserProfile onClose={() => setShowProfile(false)} />}
+      {showProfile && <UserProfile onClose={() => setShowProfile(false)} onLogout={handleLogout} />}
       <UserContextMenu
         visible={Boolean(contextMenu?.user)}
         position={contextMenu?.position || { x: 0, y: 0 }}
