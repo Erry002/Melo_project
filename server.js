@@ -381,6 +381,14 @@ app.get('/health', (req, res) => {
   res.json(health);
 });
 
+// Serve uploads (avatar/attachments) prima del frontend statico
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, 'uploads'), {
+    fallthrough: false
+  })
+);
+
 // Serve statico del frontend DOPO gli endpoint API
 app.use(express.static(path.join(__dirname, 'Meluccio-frontend/dist')));
 
