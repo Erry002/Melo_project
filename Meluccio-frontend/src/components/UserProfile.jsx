@@ -7,6 +7,13 @@ import { useAuth } from '../hooks/useAuth.jsx';
 
 const AVATAR_ACCEPT = 'image/png, image/jpeg, image/webp';
 
+const resolveAvatarSrc = (avatar) => {
+  if (!avatar) return null;
+  if (/^https?:\/\//i.test(avatar)) return avatar;
+  if (avatar.startsWith('/')) return avatar;
+  return `/${avatar}`;
+};
+
 const UserProfile = ({ onClose, onLogout }) => {
   const { user, updateProfile, changePassword, uploadAvatar, logout, loading, error, clearError } = useAuth();
   const [profileData, setProfileData] = useState({
@@ -18,7 +25,7 @@ const UserProfile = ({ onClose, onLogout }) => {
     new_password: '',
     confirm_password: ''
   });
-  const [avatarPreview, setAvatarPreview] = useState(user?.avatar ? `${user.avatar}?t=${Date.now()}` : null);
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar ? `${resolveAvatarSrc(user.avatar)}?t=${Date.now()}` : null);
   const [profileMessage, setProfileMessage] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
 
@@ -107,7 +114,7 @@ const UserProfile = ({ onClose, onLogout }) => {
     const result = await uploadAvatar(file);
     if (result.success && result.avatar) {
       setProfileMessage('Avatar aggiornato correttamente!');
-      setAvatarPreview(`${result.avatar}?t=${Date.now()}`);
+      setAvatarPreview(`${resolveAvatarSrc(result.avatar)}?t=${Date.now()}`);
     } else if (result.error) {
       setProfileMessage(result.error);
     }
