@@ -1,5 +1,5 @@
 # 🤖 AI HANDOVER DOCUMENTATION - v2.0.0 COMPLETE
-> **Documentazione per AI subentrate** | Updated: 7 Dicembre 2025 | **SISTEMA COMPLETATO ✅**
+> **Documentazione per AI subentrate** | Updated: 17 Dicembre 2025 | **SISTEMA COMPLETATO ✅**
 
 ## 🎯 **STATO ATTUALE - SUCCESSO COMPLETO**
 
@@ -196,6 +196,28 @@ curl http://127.0.0.1:4040/api/tunnels   # recupera URL pubblici
 - Audio compression ottimizzata  
 - UI/UX improvements
 - Mobile device support
+
+---
+
+## 📱 AGGIORNAMENTI UI MOBILE (DICEMBRE 2025)
+
+### Obiettivo
+Rendere l'interfaccia **utilizzabile su iPhone (es. iPhone 12 Pro)** e pronta per test su **Raspberry Pi** senza overflow/scroll bloccati.
+
+### UX attuale (mobile-first)
+- **Bottom bar** fissa con 3 azioni: Profilo · Microfono · Menu
+- **Drawer laterale sinistro** apribile dal bottone Menu
+- **Chiusura drawer** con tap sull'overlay (tap fuori)
+
+### Fix chiave
+- Risolto un problema di **tap/click non funzionanti** rimuovendo una navbar duplicata finita nel DOM della sidebar e correggendo lo stacking dell'overlay
+- **Modale profilo** resa più compatta e soprattutto **scrollabile** su mobile
+- **Avatar**: risoluzione URL (path relativo → URL completo) usando `baseUrl` esposto dall'Auth context
+
+### Stato repo per test
+- Branch di riferimento: `test`
+- Remote aggiornato: `origin/test`
+- Working tree locale: pulito (attenzione a non committare artefatti DB locali)
 
 ---
 

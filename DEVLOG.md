@@ -1,10 +1,10 @@
 # 📋 DEVLOG - Melo Project
-> **Diario di bordo dello sviluppo** | Ultima modifica: 27 Novembre 2025
+> **Diario di bordo dello sviluppo** | Ultima modifica: 17 Dicembre 2025
 
 ## 🎯 STATUS PROGETTO
-- **Stato attuale**: ✅ Audio streaming stabile · 🚧 Ottimizzazione UI/UX mobile · ✅ Flusso recupero credenziali (password/token e promemoria username)
-- **Ultima sessione**: Kickoff Milestone 1 – Audit responsivo & piano di lavoro
-- **Prossimi obiettivi**: Milestone 2 – Fondamenta responsive (layout & spacing)
+- **Stato attuale**: ✅ Audio streaming stabile · ✅ UX mobile (bottom bar + drawer) pronta per test · ✅ Flusso recupero credenziali (password/token e promemoria username)
+- **Ultima sessione**: Stabilizzazione UI mobile (bottom bar + drawer) + fix tap/overlay
+- **Prossimi obiettivi**: Test su Raspberry (pull `test`) e feedback da device reali
 - **Branch corrente**: `test`
 
 ---
@@ -31,6 +31,25 @@
 ---
 
 ## 📅 CRONOLOGIA SVILUPPO
+
+### 📱 Sessione 17 Dicembre 2025 - COMPLETATA
+**Focus**: UX mobile “app-like” (bottom bar + drawer), profilo usabile su iPhone, fix tap/click
+
+#### Attività completate:
+1. Implementata bottom bar mobile con azioni: Profilo · Microfono · Menu
+2. Aggiunto drawer laterale sinistro (menu) con overlay e chiusura “tap fuori”
+3. Sistemata la logica toggle: Profilo apre/chiude; Menu chiude profilo e apre/chiude drawer
+4. Risolto bug critico “menu non cliccabile” (navbar duplicata nella sidebar + overlay che intercettava input)
+5. Modale profilo resa più compatta e **scrollabile** su mobile (max-height + overflow)
+6. Avatar: normalizzazione URL (path relativo → URL assoluto) tramite `baseUrl` dell’Auth context
+7. Commit e push su `origin/test` per test su Raspberry
+
+#### Note operative:
+- Evitare di committare artefatti locali tipo `database/melo_chat.db` quando si fanno prove locali
+
+#### TODO immediati:
+- [ ] Test su Raspberry: `git checkout test && git pull`, rebuild/restart (PM2/script) e smoke test mobile
+- [ ] Verifica su iPhone: drawer cliccabile, scroll profilo, chat vuota (altezza), safe-area bottom
 
 ### 🛠️ Sessione 11 Dicembre 2025 - IN CORSO
 **Focus**: Recupero credenziali (password + username), email SMTP e flusso token

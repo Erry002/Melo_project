@@ -8,6 +8,9 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### ✨ Added
+- UX mobile “app-like”: bottom bar fissa (Profilo · Microfono · Menu) e drawer laterale sinistro con overlay “tap fuori per chiudere”
+- Logout spostato dentro la modale profilo (sezione sessione), con handler dedicato per cleanup completo
+- Supporto risoluzione avatar da path relativo a URL completo tramite `baseUrl` dall’Auth context
 - Flusso unificato di recupero credenziali: scelta tra recupero password (token via email) e promemoria username
 - Endpoint backend per promemoria username (`POST /api/auth/forgot-username`) e invio email dedicato
 - Modal frontend di recupero credenziali con parsing automatico del token da URL e auto-verifica
@@ -20,6 +23,8 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Configurazione PM2 separata (`raspberry/ecosystem.config.cjs`) compatibile con Node ESM
 
 ### 🔄 Changed
+- Sidebar semplificata: profilo (avatar+nome cliccabile) e solo due azioni principali (Microfono, Connessione); logout rimosso dalla sidebar
+- Modale profilo: layout più compatto su mobile e scroll interno abilitato
 - `Meluccio-frontend/src/index.css` con tema base chiaro e background scuro uniforme per mettere in risalto il gradiente
 - `Meluccio-frontend/src/App.jsx` riprogettato mobile-first con header/footer sticky e toggle sidebar
 - Sidebar mobile con azioni rapide (profilo, microfono, connessione, logout) e navigazione canali/utenti consolidata
@@ -33,6 +38,8 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Documentazione generale (`README.md`, `AI_HANDOVER.md`, `DEVLOG.md`) sincronizzata con il workflow Raspberry e ngrok
 
 ### 🐛 Fixed
+- Fix critico interazioni mobile: rimosso un duplicato di navbar nella sidebar e corretto lo stacking dell’overlay che bloccava tap/click nel drawer
+- Avatar “caricato ma non mostrato” su alcuni ambienti: normalizzazione URL quando il backend ritorna path relativi
 - Rimosso il doppio toggle del microfono in `Meluccio-frontend/src/App.jsx`, ora gestito solo dalle azioni rapide
 - Corretto il bug che duplicava gli utenti quando cambiavano canale in `server.js`
 - La chat non si svuota più cambiando canale o riavviando il server; notifiche d'errore chat mostrate lato client
