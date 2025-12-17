@@ -1161,13 +1161,6 @@ const AuthenticatedApp = () => {
     await logout();
   };
 
-  const resolveAvatarSrc = (avatar) => {
-    if (!avatar) return null;
-    if (/^https?:\/\//i.test(avatar)) return avatar;
-    if (avatar.startsWith('/')) return avatar;
-    return `/${avatar}`;
-  };
-
   const handleToggleMic = async () => {
     if (isRecording) {
       stopAudio();
@@ -1181,14 +1174,6 @@ const AuthenticatedApp = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-700 to-indigo-900 px-4 pt-5 pb-24 sm:px-6 sm:pt-8 sm:pb-28 lg:px-14 lg:py-16">
-      {isSidebarOpen && (
-        <button
-          type="button"
-          className="lg:hidden fixed inset-0 bg-slate-900/40 z-40"
-          aria-label="Chiudi menu"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
       <div className="max-w-6xl mx-auto">
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/30 overflow-hidden">
           <div className="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-5 border-b border-white/20 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1222,6 +1207,14 @@ const AuthenticatedApp = () => {
           </div>
 
           <div className="px-4 py-4 sm:px-8 sm:py-6 flex flex-col gap-4 lg:grid lg:grid-cols-[320px_1fr]">
+            {isSidebarOpen && (
+              <button
+                type="button"
+                className="lg:hidden fixed inset-0 bg-slate-900/40 z-40"
+                aria-label="Chiudi menu"
+                onClick={() => setIsSidebarOpen(false)}
+              />
+            )}
             <aside
               className={`mobile-panel overflow-hidden min-h-0 sidebar-panel fixed inset-y-0 left-0 z-50 w-[86vw] max-w-[360px] transform transition-transform duration-200 ease-out ${
                 isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -1231,31 +1224,10 @@ const AuthenticatedApp = () => {
               <div className="h-full overflow-y-auto touch-scroll px-4 py-4 sm:px-5 sm:py-5 pb-24 lg:pb-5 space-y-6">
               <section className="bg-white rounded-2xl shadow-inner border border-slate-100 p-5">
                 <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">
-                  Profilo
+                  Menu
                 </h2>
 
-                <button
-                  type="button"
-                  onClick={() => runSidebarAction(() => setShowProfile(true))}
-                  className="w-full flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-left hover:border-indigo-300 hover:bg-indigo-50/80 transition-colors min-w-0"
-                  aria-label="Apri profilo"
-                  title="Apri profilo"
-                >
-                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-indigo-600/10 text-indigo-700 flex items-center justify-center font-bold shrink-0">
-                    {user?.avatar ? (
-                      <img src={`${resolveAvatarSrc(user.avatar)}?t=${Date.now()}`} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <span>{(displayName || 'M')[0]}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 truncate">{displayName}</div>
-                    <div className="text-xs text-slate-500 truncate">@{user?.username || 'utente'}</div>
-                  </div>
-                  <span className="text-slate-400 shrink-0">›</span>
-                </button>
-
-                <div className="mt-4 grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={() => runSidebarAction(handleToggleConnection)}
@@ -1267,29 +1239,6 @@ const AuthenticatedApp = () => {
                     <span className="text-lg shrink-0">{connectionStatus === 'connected' ? '🔌' : '⚡️'}</span>
                     <span className="text-sm font-semibold flex-1 min-w-0 whitespace-normal leading-tight">
                       {connectionStatus === 'connected' ? 'Disconnetti' : 'Connetti'}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => runSidebarAction(async () => {
-                      await handleToggleMic();
-                    })}
-                    aria-label={isRecording ? 'Disattiva microfono' : 'Attiva microfono'}
-                    title={isRecording ? 'Disattiva microfono' : 'Attiva microfono'}
-                    className={`mic-button flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors min-w-0 ${
-                      isRecording
-                        ? 'mic-button--recording border-emerald-400 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-200/60'
-                        : connectionStatus !== 'connected'
-                          ? 'border-slate-200 text-slate-400 cursor-not-allowed'
-                          : 'border-slate-200 text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-200/60'
-                    }`}
-                    disabled={connectionStatus !== 'connected' && !isRecording}
-                    aria-pressed={isRecording}
-                  >
-                    <span className="text-lg shrink-0">{isRecording ? '🔇' : '🎙️'}</span>
-                    <span className="text-sm font-semibold flex-1 min-w-0 whitespace-normal leading-tight">
-                      {isRecording ? 'Disattiva microfono' : 'Attiva microfono'}
                     </span>
                   </button>
                 </div>
@@ -1323,7 +1272,7 @@ const AuthenticatedApp = () => {
                       </span>
                     </div>
                     <p className="text-xs text-slate-400">
-                      Controlla il microfono dalle azioni rapide oppure dalla toolbar principale.
+                      Controlla il microfono dalla bottom bar.
                     </p>
                     <div className="mt-3 h-12 bg-slate-800/70 rounded-lg flex items-center justify-center">
                       {isRecording ? (
@@ -1802,7 +1751,10 @@ const AuthenticatedApp = () => {
           <div className="grid grid-cols-3 gap-2 py-2">
             <button
               type="button"
-              onClick={() => setShowProfile(true)}
+              onClick={() => {
+                setIsSidebarOpen(false);
+                setShowProfile((prev) => !prev);
+              }}
               className="flex flex-col items-center justify-center gap-1 rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-50 transition-colors"
               aria-label="Profilo"
             >
@@ -1830,7 +1782,10 @@ const AuthenticatedApp = () => {
 
             <button
               type="button"
-              onClick={() => setIsSidebarOpen((prev) => !prev)}
+              onClick={() => {
+                setShowProfile(false);
+                setIsSidebarOpen((prev) => !prev);
+              }}
               className={`flex flex-col items-center justify-center gap-1 rounded-xl px-3 py-2 transition-colors ${
                 isSidebarOpen ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'
               }`}

@@ -1,21 +1,22 @@
 // 👤 Pannello profilo utente per Melo Chat
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import { useAuth } from '../hooks/useAuth.jsx';
 
 const AVATAR_ACCEPT = 'image/png, image/jpeg, image/webp';
 
-const resolveAvatarSrc = (avatar) => {
+const resolveAvatarSrc = (avatar, baseUrl) => {
   if (!avatar) return null;
-  if (/^https?:\/\//i.test(avatar)) return avatar;
-  if (avatar.startsWith('/')) return avatar;
-  return `/${avatar}`;
+  if (/^https?:\/\//i.test(avatar) || avatar.startsWith('blob:') || avatar.startsWith('data:')) return avatar;
+  const normalized = avatar.startsWith('/') ? avatar : `/${avatar}`;
+  if (!baseUrl) return normalized;
+  return `${baseUrl}${normalized}`;
 };
 
 const UserProfile = ({ onClose, onLogout }) => {
-  const { user, updateProfile, changePassword, uploadAvatar, logout, loading, error, clearError } = useAuth();
+  const { user, baseUrl, updateProfile, changePassword, uploadAvatar, logout, loading, error, clearError } = useAuth();
   const [profileData, setProfileData] = useState({
     display_name: user?.display_name || '',
     email: user?.email || ''
@@ -25,9 +26,19 @@ const UserProfile = ({ onClose, onLogout }) => {
     new_password: '',
     confirm_password: ''
   });
-  const [avatarPreview, setAvatarPreview] = useState(user?.avatar ? `${resolveAvatarSrc(user.avatar)}?t=${Date.now()}` : null);
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar ? resolveAvatarSrc(user.avatar, baseUrl) : null);
   const [profileMessage, setProfileMessage] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
+
+  useEffect(() => {
+    if (!user?.avatar) return;
+    if (!baseUrl) return;
+    setAvatarPreview((current) => {
+      if (current?.startsWith('blob:')) return current;
+      const resolved = resolveAvatarSrc(user.avatar, baseUrl);
+      return resolved && current !== resolved ? resolved : current;
+    });
+  }, [user?.avatar, baseUrl]);
 
   const resetFeedback = () => {
     setProfileMessage('');
@@ -114,7 +125,7 @@ const UserProfile = ({ onClose, onLogout }) => {
     const result = await uploadAvatar(file);
     if (result.success && result.avatar) {
       setProfileMessage('Avatar aggiornato correttamente!');
-      setAvatarPreview(`${resolveAvatarSrc(result.avatar)}?t=${Date.now()}`);
+      setAvatarPreview(`${resolveAvatarSrc(result.avatar, baseUrl)}?t=${Date.now()}`);
     } else if (result.error) {
       setProfileMessage(result.error);
     }
@@ -131,8 +142,8 @@ const UserProfile = ({ onClose, onLogout }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur flex items-center justify-center z-50 px-4">
-      <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur z-50 px-4 py-4 overflow-y-auto touch-scroll">
+      <div className="relative w-full max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl border border-slate-200 max-h-[calc(100dvh-6rem)] overflow-y-auto touch-scroll pb-24">
         <button
           type="button"
           onClick={onClose}
@@ -143,14 +154,14 @@ const UserProfile = ({ onClose, onLogout }) => {
         </button>
 
         <div className="grid lg:grid-cols-3">
-          <aside className="bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 text-white p-8">
+          <aside className="bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 text-white p-5 sm:p-8">
             <div className="flex flex-col items-center text-center gap-4">
               <div className="relative">
-                <div className="w-28 h-28 rounded-full overflow-hidden ring-4 ring-white/40 shadow-lg">
+                <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden ring-4 ring-white/40 shadow-lg">
                   {avatarPreview ? (
                     <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full bg-white/20 flex items-center justify-center text-4xl">
+                    <div className="w-full h-full bg-white/20 flex items-center justify-center text-3xl sm:text-4xl">
                       {user?.display_name?.[0] || user?.username?.[0] || 'M'}
                     </div>
                   )}
@@ -185,8 +196,8 @@ const UserProfile = ({ onClose, onLogout }) => {
             </div>
           </aside>
 
-          <div className="lg:col-span-2 p-8 space-y-8">
-            <section className="bg-slate-50 rounded-2xl border border-slate-200 p-6">
+          <div className="lg:col-span-2 p-5 sm:p-8 space-y-6 sm:space-y-8">
+            <section className="bg-slate-50 rounded-2xl border border-slate-200 p-5 sm:p-6">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Aggiorna informazioni profilo</h3>
               <form onSubmit={handleProfileSubmit} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
@@ -238,7 +249,7 @@ const UserProfile = ({ onClose, onLogout }) => {
               </form>
             </section>
 
-            <section className="bg-slate-50 rounded-2xl border border-slate-200 p-6">
+            <section className="bg-slate-50 rounded-2xl border border-slate-200 p-5 sm:p-6">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Cambio password</h3>
               <form onSubmit={handlePasswordSubmit} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
@@ -305,7 +316,7 @@ const UserProfile = ({ onClose, onLogout }) => {
               </form>
             </section>
 
-            <section className="bg-slate-50 rounded-2xl border border-slate-200 p-6">
+            <section className="bg-slate-50 rounded-2xl border border-slate-200 p-5 sm:p-6">
               <h3 className="text-lg font-semibold text-slate-800 mb-2">Sessione</h3>
               <p className="text-sm text-slate-500 mb-4">
                 Esci dal tuo account su questo dispositivo.

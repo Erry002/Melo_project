@@ -278,6 +278,7 @@ export const AuthProvider = ({ children }) => {
   const value = useMemo(() => ({
     token,
     user,
+    baseUrl,
     loading,
     error,
     login,
@@ -288,7 +289,7 @@ export const AuthProvider = ({ children }) => {
     changePassword,
     uploadAvatar,
     isAuthenticated: Boolean(token)
-  }), [token, user, loading, error, login, register, logout, updateProfile, changePassword, uploadAvatar]);
+  }), [token, user, baseUrl, loading, error, login, register, logout, updateProfile, changePassword, uploadAvatar]);
 
   return (
     <AuthContext.Provider value={value}>
