@@ -188,11 +188,27 @@ const AuthenticatedApp = () => {
   const socketRef = useRef(null);
   const streamRef = useRef(null);
   const playbackRef = useRef({ context: null, nextStartTime: 0 });
+  const chatScrollRef = useRef(null);
+  const pendingScrollToBottomRef = useRef(false);
   const isRecordingRef = useRef(false);
   const currentChannelIdRef = useRef(null);
   const currentServerIdRef = useRef(null);
   const displayNameRef = useRef('');
   const currentServerRoleRef = useRef(null);
+
+  const scrollChatToBottom = useCallback(() => {
+    const container = chatScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    // Double-rAF: assicura che il DOM dei messaggi sia già aggiornato.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+      });
+    });
+  }, []);
 
   const displayName = useMemo(() => (
     user?.display_name?.trim() || user?.username || 'Ospite'
@@ -707,6 +723,8 @@ const AuthenticatedApp = () => {
       return;
     }
 
+    pendingScrollToBottomRef.current = true;
+
     setChatError('');
     socketRef.current.emit(
       'sendMessage',
@@ -718,6 +736,15 @@ const AuthenticatedApp = () => {
     );
     setNewMessage('');
   }, [newMessage]);
+
+  useEffect(() => {
+    if (!pendingScrollToBottomRef.current) {
+      return;
+    }
+
+    pendingScrollToBottomRef.current = false;
+    scrollChatToBottom();
+  }, [messages.length, scrollChatToBottom]);
 
   const handleToggleConnection = useCallback(() => {
     if (!socketRef.current) {
@@ -1632,9 +1659,9 @@ const AuthenticatedApp = () => {
             </aside>
 
             <main className="order-1 lg:order-2 relative flex flex-col min-h-0 mobile-panel overflow-hidden chat-panel">
-              <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 sticky-mobile-header bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-t-2xl">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <h2 className="text-lg sm:text-xl font-semibold text-slate-700 flex items-center gap-2">
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 sticky-mobile-header bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 rounded-t-2xl">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-700 flex items-center gap-2">
                     💬 Conversazione
                     {currentChannelId && (
                       <span className="text-xs font-medium px-2 py-1 bg-indigo-100 text-indigo-600 rounded-full">
@@ -1652,7 +1679,7 @@ const AuthenticatedApp = () => {
                       || messages.length === 0
                     }
                     aria-busy={isClearingChat}
-                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                       isClearingChat
                         ? 'bg-slate-200 text-slate-400 cursor-wait'
                         : connectionStatus !== 'connected' || !currentChannelId || messages.length === 0
@@ -1663,9 +1690,6 @@ const AuthenticatedApp = () => {
                     {isClearingChat ? 'Svuotando…' : '🗑️ Svuota chat'}
                   </button>
                 </div>
-                <p className="text-sm text-slate-400 mt-2">
-                  Chat vocale e testuale in tempo reale con audio streaming.
-                </p>
                 {chatError && (
                   <p className="mt-2 text-xs text-rose-500">
                     {chatError}
@@ -1673,7 +1697,7 @@ const AuthenticatedApp = () => {
                 )}
               </div>
 
-              <div className="flex-1 min-h-[42vh] lg:min-h-0 overflow-y-auto touch-scroll px-4 sm:px-6 py-4 sm:py-6 space-y-4 chat-surface">
+              <div ref={chatScrollRef} className="flex-1 min-h-[42vh] lg:min-h-0 overflow-y-auto touch-scroll px-4 sm:px-6 pt-4 pb-10 sm:py-6 space-y-4 chat-surface">
                 {messages.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-slate-400 text-sm">
                     Nessun messaggio. Inizia la conversazione!
@@ -1737,29 +1761,26 @@ const AuthenticatedApp = () => {
                     Invia
                   </button>
                 </div>
-                <div className="text-xs text-slate-400">
-                  Stato: {connectionStatus} · Canale: {currentChannelId || 'Nessuno'} · Socket: {socketId || '—'}
-                </div>
               </form>
             </main>
           </div>
         </div>
       </div>
 
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[60] border-t border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-bottom">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[60] border-t border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 safe-bottom-sm">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="grid grid-cols-3 gap-2 py-2">
+          <div className="grid grid-cols-3 gap-2 py-1.5">
             <button
               type="button"
               onClick={() => {
                 setIsSidebarOpen(false);
                 setShowProfile((prev) => !prev);
               }}
-              className="flex flex-col items-center justify-center gap-1 rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-50 transition-colors"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-xl px-2.5 py-1.5 text-slate-700 hover:bg-slate-50 transition-colors"
               aria-label="Profilo"
             >
-              <span className="text-lg">👤</span>
-              <span className="text-[11px] font-semibold">Profilo</span>
+              <span className="text-base leading-none">👤</span>
+              <span className="text-[10px] font-semibold leading-none">Profilo</span>
             </button>
 
             <button
@@ -1767,7 +1788,7 @@ const AuthenticatedApp = () => {
               onClick={handleToggleMic}
               disabled={connectionStatus !== 'connected' && !isRecording}
               aria-pressed={isRecording}
-              className={`mic-button flex flex-col items-center justify-center gap-1 rounded-xl px-3 py-2 transition-colors ${
+              className={`mic-button flex flex-col items-center justify-center gap-0.5 rounded-xl px-2.5 py-1.5 transition-colors ${
                 isRecording
                   ? 'mic-button--recording bg-emerald-50 text-emerald-700'
                   : connectionStatus !== 'connected'
@@ -1776,8 +1797,8 @@ const AuthenticatedApp = () => {
               }`}
               aria-label={isRecording ? 'Disattiva microfono' : 'Attiva microfono'}
             >
-              <span className="text-lg">{isRecording ? '🔇' : '🎙️'}</span>
-              <span className="text-[11px] font-semibold">Microfono</span>
+              <span className="text-base leading-none">{isRecording ? '🔇' : '🎙️'}</span>
+              <span className="text-[10px] font-semibold leading-none">Microfono</span>
             </button>
 
             <button
@@ -1786,15 +1807,15 @@ const AuthenticatedApp = () => {
                 setShowProfile(false);
                 setIsSidebarOpen((prev) => !prev);
               }}
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl px-3 py-2 transition-colors ${
+              className={`flex flex-col items-center justify-center gap-0.5 rounded-xl px-2.5 py-1.5 transition-colors ${
                 isSidebarOpen ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'
               }`}
               aria-expanded={isSidebarOpen}
               aria-controls="sidebar-panel"
               aria-label={isSidebarOpen ? 'Chiudi menu' : 'Apri menu'}
             >
-              <span className="text-lg">☰</span>
-              <span className="text-[11px] font-semibold">Menu</span>
+              <span className="text-base leading-none">☰</span>
+              <span className="text-[10px] font-semibold leading-none">Menu</span>
             </button>
           </div>
         </div>
