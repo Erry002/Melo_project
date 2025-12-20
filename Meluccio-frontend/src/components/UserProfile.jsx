@@ -143,7 +143,7 @@ const UserProfile = ({ onClose, onLogout }) => {
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur z-50 px-4 py-4 overflow-y-auto touch-scroll">
-      <div className="relative w-full max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl border border-slate-200 max-h-[calc(100dvh-6rem)] overflow-y-auto touch-scroll pb-24">
+      <div className="relative w-full max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl border border-slate-200 max-h-[calc(100dvh-6rem)] overflow-y-auto touch-scroll">
         <button
           type="button"
           onClick={onClose}
@@ -153,8 +153,8 @@ const UserProfile = ({ onClose, onLogout }) => {
           ✕
         </button>
 
-        <div className="grid lg:grid-cols-3">
-          <aside className="bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 text-white p-5 sm:p-8">
+        <div className="grid lg:grid-cols-3 items-stretch min-h-full pb-24">
+          <aside className="bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 text-white p-5 sm:p-8 h-full">
             <div className="flex flex-col items-center text-center gap-4">
               <div className="relative">
                 <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-full overflow-hidden ring-4 ring-white/40 shadow-lg">
