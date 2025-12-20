@@ -1,6 +1,6 @@
 {
   "name": "melo-project",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "🎙️ Chat vocale in tempo reale di alta qualità simile a TeamSpeak - Audio streaming server-based con Socket.IO e Web Audio API",
   "main": "server.js",
   "type": "module",

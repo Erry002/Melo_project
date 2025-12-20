@@ -1,5 +1,5 @@
 # 📋 DEVLOG - Melo Project
-> **Diario di bordo dello sviluppo** | Ultima modifica: 17 Dicembre 2025
+> **Diario di bordo dello sviluppo** | Ultima modifica: 20 Dicembre 2025
 
 ## 🎯 STATUS PROGETTO
 - **Stato attuale**: ✅ Audio streaming stabile · ✅ UX mobile (bottom bar + drawer) pronta per test · ✅ Flusso recupero credenziali (password/token e promemoria username)
@@ -31,6 +31,18 @@
 ---
 
 ## 📅 CRONOLOGIA SVILUPPO
+
+### ✅ Sessione 20 Dicembre 2025 - RELEASE 1.0.0
+**Focus**: Consolidamento prodotto (quasi completo) + rifiniture UX
+
+#### Attività completate:
+1. Versioning: impostata release `1.0.0` (root + frontend)
+2. Azioni rapide desktop: pulsanti Profilo e Microfono inseriti nel box **Menu** della sidebar
+3. Profilo: fix layout colonna sinistra (gradiente esteso a tutta l’altezza del box)
+4. Allineamento documentazione a stato “prodotto funzionante / quasi completo”
+
+#### Note operative:
+- Continuare a usare il branch `test` per i deploy Raspberry, poi merge su `main` quando stabile
 
 ### 📱 Sessione 17 Dicembre 2025 - COMPLETATA
 **Focus**: UX mobile “app-like” (bottom bar + drawer), profilo usabile su iPhone, fix tap/click

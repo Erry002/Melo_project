@@ -2,6 +2,8 @@
 
 **Chat vocale in tempo reale di alta qualità simile a TeamSpeak**
 
+**Versione**: 1.0.0 (20 dicembre 2025)
+
 Un'applicazione moderna per comunicazioni vocali istantanee tra utenti, costruita con tecnologie web avanzate e ottimizzata per performance eccellenti.
 
 [![Node.js](https://img.shields.io/badge/Node.js-18.20.8-green)](https://nodejs.org/)
@@ -209,11 +211,10 @@ Nel file `App.jsx` puoi modificare:
 
 ## 📋 TODO
 
-- [ ] Sistema autenticazione utenti
-- [ ] Chat testuale complementare
-- [ ] Recording sessioni audio
-- [ ] Mobile app React Native
-- [ ] Integrazione Discord bot
+- [ ] Hardening & test (smoke test Raspberry + checklist rilascio)
+- [ ] Pannello ruoli/permessi lato client (assegnazione + gestione)
+- [ ] Rifiniture UX desktop (fullscreen) e accessibilità
+- [ ] Feature future: recording sessioni audio / app React Native / bot
 
 ## 📄 Licenza
 

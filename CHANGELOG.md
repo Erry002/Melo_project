@@ -7,6 +7,10 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+_Nessuna modifica non rilasciata al momento._
+
+## [1.0.0] - 2025-12-20 🎉
+
 ### ✨ Added
 - UX mobile “app-like”: bottom bar fissa (Profilo · Microfono · Menu) e drawer laterale sinistro con overlay “tap fuori per chiudere”
 - Logout spostato dentro la modale profilo (sezione sessione), con handler dedicato per cleanup completo
@@ -21,33 +25,24 @@ e questo progetto segue il [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Guide Raspberry dedicate: `raspberry/SETUP.md`, script `install-deps.sh`, `manual-deploy.sh`
 - Suite diagnostica Raspberry (`raspberry/tests/`) con stress test HTTP, controllo SQLite e stato tunnel
 - Configurazione PM2 separata (`raspberry/ecosystem.config.cjs`) compatibile con Node ESM
+- Effetto neve globale (periodo natalizio) con `react-snowfall` su tutta l’app (anche login)
 
 ### 🔄 Changed
-- Sidebar semplificata: profilo (avatar+nome cliccabile) e solo due azioni principali (Microfono, Connessione); logout rimosso dalla sidebar
+- Sidebar semplificata: profilo (avatar+nome cliccabile) e azioni principali (Microfono, Connessione)
 - Modale profilo: layout più compatto su mobile e scroll interno abilitato
-- `Meluccio-frontend/src/index.css` con tema base chiaro e background scuro uniforme per mettere in risalto il gradiente
 - `Meluccio-frontend/src/App.jsx` riprogettato mobile-first con header/footer sticky e toggle sidebar
-- Sidebar mobile con azioni rapide (profilo, microfono, connessione, logout) e navigazione canali/utenti consolidata
-- `Meluccio-frontend/src/LoginForm.jsx` e `Meluccio-frontend/src/RegisterForm.jsx` ottimizzati per spaziatura e tipografia su piccoli schermi
-- Schermata di autenticazione (`UnauthenticatedApp`) riorganizzata con layout mobile-first, hero sintetico e toggle segmentato login/registrazione
-- Moduli `LoginForm` e `RegisterForm` alleggeriti con nuovo stile chiaro coerente con la card principale
-- `server.js` ora serve server/canali dal database e persiste la chat con comandi di cleanup
-- `Meluccio-frontend/src/App.jsx` sincronizza la cronologia dal server, normalizza messaggi ed esegue lo svuotamento sicuro della chat
-- `server.js` applica permessi di ruolo per invio messaggi e svuotamento chat con membership cache lato socket
-- Aggiornati script Raspberry esistenti (`install.sh`, `optimize.sh`, `ngrok-manager.sh`, `start-menu.sh`) per riflettere la nuova configurazione `.cjs`
-- Documentazione generale (`README.md`, `AI_HANDOVER.md`, `DEVLOG.md`) sincronizzata con il workflow Raspberry e ngrok
+- Script Raspberry esistenti allineati alla configurazione `.cjs`
+- Documentazione generale sincronizzata con workflow Raspberry e ngrok
 
 ### 🐛 Fixed
-- Fix critico interazioni mobile: rimosso un duplicato di navbar nella sidebar e corretto lo stacking dell’overlay che bloccava tap/click nel drawer
-- Avatar “caricato ma non mostrato” su alcuni ambienti: normalizzazione URL quando il backend ritorna path relativi
-- Rimosso il doppio toggle del microfono in `Meluccio-frontend/src/App.jsx`, ora gestito solo dalle azioni rapide
-- Corretto il bug che duplicava gli utenti quando cambiavano canale in `server.js`
-- La chat non si svuota più cambiando canale o riavviando il server; notifiche d'errore chat mostrate lato client
+- Fix interazioni mobile: rimosso duplicato di navbar nella sidebar e corretto stacking overlay che bloccava tap/click
+- Avatar “caricato ma non mostrato”: il backend ora serve `/uploads` e l’URL viene normalizzato lato client
+- Fix UI chat su mobile: header più compatto, rimozione testi inutili, padding bottom per evitare ultimo messaggio tagliato
+- Auto-scroll chat dopo invio messaggio
+- Azioni rapide su desktop: pulsanti Profilo/Microfono disponibili nel box Menu della sidebar
+- Profilo: gradiente colonna sinistra esteso a tutta l’altezza del box
 
-### 📝 Documentation
-- Aggiornato `DEVLOG.md` con stato Milestone 2 e note responsive
-
-## [2.0.0] - 2025-09-01 🚀
+## [0.9.0] - 2025-09-01 🚀
 
 ### 🔥 **MAJOR RELEASE - Architettura Audio Completamente Riscritta**
 
@@ -119,7 +114,7 @@ Modified:
 
 ---
 
-## [1.0.0] - 2025-02-17
+## [0.1.0] - 2025-02-17
 
 ### Aggiunto
 - 🎤 Implementazione chat vocale con WebRTC

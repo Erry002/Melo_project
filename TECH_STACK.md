@@ -3,7 +3,7 @@
 > **Progetto**: Chat real-time con audio streaming  
 > **Target**: Raspberry Pi 3B+  
 > **Architettura**: Client-Server con WebSocket  
-> **Branch**: `audio-streaming-v1`
+> **Branch**: `test`
 
 ---
 
@@ -57,9 +57,9 @@
 | **Socket.IO Client** | Latest | Comunicazione real-time |
 | **JavaScript ES6+** | Native | Linguaggio principale |
 | **JSX** | Native | Template React |
-| **CSS-in-JS** | Inline | Styling semplificato |
-| **HTML5 MediaRecorder** | Native | Cattura audio microfono |
-| **WebAudio API** | Native | Analisi livelli audio |
+| **Tailwind CSS** | Utility-first | Styling UI/UX |
+| **getUserMedia** | Native | Cattura audio microfono |
+| **WebAudio API** | Native | Elaborazione audio + analisi livelli |
 
 ### Struttura Directory Frontend
 ```

@@ -1,5 +1,5 @@
-# 🤖 AI HANDOVER DOCUMENTATION - v2.0.0 COMPLETE
-> **Documentazione per AI subentrate** | Updated: 17 Dicembre 2025 | **SISTEMA COMPLETATO ✅**
+# 🤖 AI HANDOVER DOCUMENTATION - v1.0.0
+> **Documentazione per AI subentrate** | Updated: 20 Dicembre 2025 | **PRODOTTO FUNZIONANTE ✅ (quasi completo)**
 
 ## 🎯 **STATO ATTUALE - SUCCESSO COMPLETO**
 
@@ -8,9 +8,9 @@
 - **Owner**: Erry002  
 - **Repo**: https://github.com/Erry002/Melo_project
 - **Branch attivo**: `test`
-- **Versione**: v2.0.0 - Sistema audio perfettamente funzionante
+- **Versione**: v1.0.0 - Prodotto stabile e usabile (audio + UI + auth)
 - **User Feedback**: "Molto meglio" - Obiettivo raggiunto ✅
-- **Stato**: Audio streaming real-time funzionante, testing multi-utente
+- **Stato**: Audio streaming real-time + UX mobile/desktop pronta per uso, in corso rifiniture finali
 
 ### Obiettivo
 Sistema di chat vocale real-time tipo TeamSpeak/Discord, ottimizzato per deployment su **Raspberry Pi 3B+**.
@@ -185,6 +185,9 @@ curl http://127.0.0.1:4040/api/tunnels   # recupera URL pubblici
 - Room management per audio isolation
 - Noise gate (threshold 0.01)
 - Microphone level visualization
+- Avatar e attachments serviti da backend tramite `/uploads`
+- Effetto neve globale (stagionale) con `react-snowfall`
+- Azioni rapide (Profilo/Microfono) accessibili dal box Menu della sidebar
 
 ### 🔄 Testing Needed
 - Multi-user audio streaming (implementato, da testare)

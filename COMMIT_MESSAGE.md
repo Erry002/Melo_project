@@ -1,4 +1,4 @@
-🚀 RELEASE v2.0.0: Audio Streaming Engine Completato
+🚀 RELEASE v1.0.0: Prodotto funzionante (quasi completo)
 
 🎵 MAJOR: Sistema audio completamente riscritta con timing perfetto
 • Migrazione da MediaRecorder chunks → Raw Float32 samples  
@@ -16,7 +16,7 @@
 • App.jsx (875 lines) - Audio engine completo
 • SimpleAudioManager.js (NEW) - Server audio management
 • server.js - Enhanced con audio-stream handlers
-• package.json - v2.0.0 con metadata completi
+• package.json - v1.0.0 con metadata completi
 • README.md - Documentazione professionale completa
 • CHANGELOG.md - Release notes dettagliate
 • AI_HANDOVER.md - Guida aggiornata per subentri
