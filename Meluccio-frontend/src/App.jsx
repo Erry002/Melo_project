@@ -7,7 +7,7 @@ import LoginForm from './components/LoginForm.jsx';
 import RegisterForm from './components/RegisterForm.jsx';
 import UserProfile from './components/UserProfile.jsx';
 import UserContextMenu from './components/UserContextMenu.jsx';
-import Snowfall from 'react-snowfall';
+/* import Snowfall from 'react-snowfall';  */
 import { findBestUrl } from './utils/connection.js';
 import './App.css';
 import './Global.css';
@@ -2026,7 +2026,7 @@ const AppContent = () => {
 const App = () => (
   <AuthProvider>
     <div className="fixed inset-0 pointer-events-none z-[80]">
-      <Snowfall color="#82C3D9" style={{ width: '100%', height: '100%' }} />
+      {/* <Snowfall color="#82C3D9" style={{ width: '100%', height: '100%' }} /> */}
     </div>
     <AppContent />
   </AuthProvider>
