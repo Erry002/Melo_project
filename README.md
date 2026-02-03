@@ -225,7 +225,3 @@ Nel file `App.jsx` puoi modificare:
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/Erry002/Melo_project/issues)
 - 💬 **Discussioni**: [GitHub Discussions](https://github.com/Erry002/Melo_project/discussions)
 - 📧 **Contatto**: [erry002@github.com](mailto:erry002@github.com)
-
----
-
-**Sviluppato con ❤️ da [Erry002](https://github.com/Erry002)**
