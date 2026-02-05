@@ -7,10 +7,16 @@
 - **Nome**: Melo Project - TeamSpeak-style Chat con Audio Streaming
 - **Owner**: Erry002  
 - **Repo**: https://github.com/Erry002/Melo_project
-- **Branch attivo**: `test`
+- **Branch attivo**: `test` (deployment Raspberry, merge su `main` dopo stabilizzazione)
 - **Versione**: v1.0.0 - Prodotto stabile e usabile (audio + UI + auth)
 - **User Feedback**: "Molto meglio" - Obiettivo raggiunto ✅
 - **Stato**: Audio streaming real-time + UX mobile/desktop pronta per uso, in corso rifiniture finali
+
+### Workflow Operativo
+- **Sviluppo**: Branch `test` per nuove feature e test su Raspberry
+- **Produzione**: Merge su `main` dopo verifica stabilità
+- **Deployment**: Script automatizzati in `raspberry/` (install, optimize, deploy)
+- **Monitoring**: Suite diagnostica in `raspberry/tests/` (stress-http, sqlite-health, tunnel-check)
 
 ### Obiettivo
 Sistema di chat vocale real-time tipo TeamSpeak/Discord, ottimizzato per deployment su **Raspberry Pi 3B+**.
@@ -195,10 +201,50 @@ curl http://127.0.0.1:4040/api/tunnels   # recupera URL pubblici
 - Audio quality fine-tuning
 
 ### 📋 TODO Future
-- Error handling robusto
-- Audio compression ottimizzata  
-- UI/UX improvements
-- Mobile device support
+
+#### Risolti ✅
+- WebRTC memory leaks → Migrazione a Socket.IO
+- MediaRecorder codec errors → Switch a Web Audio API  
+- useSimpleAudio crashes → Inline implementation
+- Avatar non mostrati → Backend serve `/uploads` + normalizzazione URL client
+- UI mobile → Bottom bar + drawer con overlay
+- Recupero credenziali → Flusso unificato (password + username reminder)
+
+#### In Progress 🔄
+- Multi-user testing - Sistema implementato, testing needed
+- Performance su Raspberry Pi - Deployment scripts pronti
+
+#### Prossimi Passi 📋
+- [ ] Testing estensivo multi-utente su Raspberry Pi  
+- [ ] Ottimizzazioni latenza (target <25ms)
+- [ ] Audio quality fine-tuning (codec compression)
+- [ ] Error handling robusto con retry logic
+- [ ] Pannello admin lato client per gestione ruoli/permessi
+- [ ] Mobile PWA optimization (iOS/Android)
+- [ ] Monitoring dashboard (audio stats, user count, latency)
+
+---
+
+## 📅 CRONOLOGIA SVILUPPO RECENTE
+
+### v1.0.0 - 20 Dicembre 2025
+- **Versioning**: Impostata release stabile 1.0.0
+- **Azioni rapide desktop**: Profilo/Microfono nel box Menu sidebar
+- **Profilo**: Fix layout gradiente colonna sinistra
+- **Documentazione**: Allineamento a stato "prodotto funzionante"
+
+### Mobile UX - 17 Dicembre 2025  
+- **Bottom bar**: Profilo · Microfono · Menu fissa
+- **Drawer laterale**: Sidebar apertura da Menu con overlay tap-to-close
+- **Fix tap/click**: Rimosso navbar duplicato, corretto z-index overlay
+- **Modale profilo**: Layout compatto + scroll abilitato su mobile
+- **Avatar**: Risoluzione URL relativo → assoluto tramite `baseUrl`
+
+### Audio Streaming v2 - Settembre 2025
+- **Migrazione**: MediaRecorder → Web Audio API raw samples
+- **Latenza**: Ridotta da ~200ms a ~25ms
+- **Buffer circolare**: 3s anti-dropout con timing preciso
+- **SimpleAudioManager**: Gestione server-side room + broadcasting
 
 ---
 
@@ -297,10 +343,12 @@ Rendere l'interfaccia **utilizzabile su iPhone (es. iPhone 12 Pro)** e pronta pe
 - [ ] Familiarità con file App.jsx e SimpleAudioManager.js
 
 ### Context Files da leggere:
-1. **DEVLOG.md** - Cronologia sviluppo dettagliata
+1. **AI_HANDOVER.md** (questo file) - Overview completo + cronologia
 2. **TECH_STACK.md** - Documentazione tecnica completa (875 righe)
-3. **App.jsx** - Frontend implementation  
-4. **server.js** + **SimpleAudioManager.js** - Backend logic
+3. **CHANGELOG.md** - Versioning semantico e release notes
+4. **App.jsx** - Frontend implementation  
+5. **server.js** + **SimpleAudioManager.js** - Backend logic
+6. **raspberry/SETUP.md** - Guida deployment Raspberry Pi
 
 ### Quick Verification
 ```bash

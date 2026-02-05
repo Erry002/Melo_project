@@ -103,11 +103,11 @@ Melo_project/
 │   └── 📦 package.json             # Dipendenze frontend
 ├── 🤖 raspberry/                   # Scripts deployment Raspberry Pi
 │   ├── 📜 install.sh               # Installazione automatica
-│   │   ├── ⚙️ ecosystem.config.cjs     # Configurazione PM2
+│   ├── ⚙️ ecosystem.config.cjs     # Configurazione PM2
 │   └── 🔧 optimize.sh              # Ottimizzazioni sistema
 ├── 📝 TECH_STACK.md               # Documentazione tecnica completa
-├── 🚀 AI_HANDOVER.md              # Guida per sviluppatori/AI
-└── 📋 DEVLOG.md                   # Changelog dettagliato
+├── 🚀 AI_HANDOVER.md              # Guida per sviluppatori/AI (consolidata)
+└── 📋 CHANGELOG.md                # Release notes e versioning
 ```
 
 ## 🎵 Sistema Audio Avanzato
