@@ -105,9 +105,13 @@ Melo_project/
 │   ├── 📜 install.sh               # Installazione automatica
 │   ├── ⚙️ ecosystem.config.cjs     # Configurazione PM2
 │   └── 🔧 optimize.sh              # Ottimizzazioni sistema
-├── 📝 TECH_STACK.md               # Documentazione tecnica completa
-├── 🚀 AI_HANDOVER.md              # Guida per sviluppatori/AI (consolidata)
-└── 📋 CHANGELOG.md                # Release notes e versioning
+└── 📁 docs/                        # Documentazione progetto
+    ├── 📁 ai/                      # Documentazione per AI/sviluppatori
+    │   ├── AI_HANDOVER.md          # Guida completa per AI (consolidata)
+    │   └── TECH_STACK.md           # Documentazione tecnica completa
+    ├── CHANGELOG.md                # Release notes e versioning
+    ├── mobile-ui-audit.md          # Audit UI mobile
+    └── relazione-basi-di-dati.md   # Documentazione database
 ```
 
 ## 🎵 Sistema Audio Avanzato

@@ -548,8 +548,11 @@ Response: {
 ```
 📁 Melo_project/
 ├── 📄 README.md                    # Documentazione progetto
-├── 📄 TECH_STACK.md               # Questo file
-├── 📄 CHANGELOG.md                # Storia modifiche  
+├── � docs/
+│   ├── 📁 ai/
+│   │   ├── AI_HANDOVER.md         # Guida per AI/sviluppatori
+│   │   └── TECH_STACK.md          # Questo file
+│   └── CHANGELOG.md               # Storia modifiche  
 ├── 📄 package.json                # Dipendenze backend
 ├── 📄 server.js                   # Server principale
 ├── 📄 SimpleAudioManager.js       # Audio manager

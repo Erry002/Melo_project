@@ -40,9 +40,10 @@ Dev OS:   macOS (Intel/ARM)
 ├── server.js                 # Main backend server
 ├── SimpleAudioManager.js     # Audio room management
 ├── package.json              # Backend dependencies
-├── DEVLOG.md                 # Development diary
-├── TECH_STACK.md             # Complete technical docs (875 lines)
-├── AI_HANDOVER.md            # This file
+├── docs/ai/                  # AI/Developer documentation
+│   ├── AI_HANDOVER.md        # This file - Complete guide
+│   └── TECH_STACK.md         # Complete technical docs (875 lines)
+├── docs/CHANGELOG.md         # Release notes & versioning
 ├── Meluccio-frontend/
 │   ├── src/App.jsx           # Main React component (430 lines)
 │   ├── package.json          # Frontend dependencies
@@ -343,10 +344,10 @@ Rendere l'interfaccia **utilizzabile su iPhone (es. iPhone 12 Pro)** e pronta pe
 - [ ] Familiarità con file App.jsx e SimpleAudioManager.js
 
 ### Context Files da leggere:
-1. **AI_HANDOVER.md** (questo file) - Overview completo + cronologia
-2. **TECH_STACK.md** - Documentazione tecnica completa (875 righe)
-3. **CHANGELOG.md** - Versioning semantico e release notes
-4. **App.jsx** - Frontend implementation  
+1. **docs/ai/AI_HANDOVER.md** (questo file) - Overview completo + cronologia
+2. **docs/ai/TECH_STACK.md** - Documentazione tecnica completa (875 righe)
+3. **docs/CHANGELOG.md** - Versioning semantico e release notes
+4. **Meluccio-frontend/src/App.jsx** - Frontend implementation  
 5. **server.js** + **SimpleAudioManager.js** - Backend logic
 6. **raspberry/SETUP.md** - Guida deployment Raspberry Pi
 
