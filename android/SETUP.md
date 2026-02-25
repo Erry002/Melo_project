@@ -3,6 +3,9 @@
 > **Dispositivo testato**: Huawei Mate 10 Pro (Kirin 970 · ARM64 · Android 10)  
 > **Branch**: `feature/android-support`
 
+> ✅ **Root NON richiesto.** Tutte le operazioni girano nello spazio utente di Termux.
+> Nessun comando usa `sudo`, nessun accesso a partizioni di sistema Android.
+
 ---
 
 ## Prerequisiti
@@ -12,9 +15,19 @@
 
 2. Installa **Termux:API** da F-Droid (per WakeLock e notifiche)
 
-3. Concedi i permessi necessari:
-   - Apri Impostazioni Android → App → Termux → Batteria → **Nessuna restrizione**
-   - (opzionale) Impostazioni → App → Termux:API → Autorizzazioni → **tutte attive**
+3. Configura Termux nelle impostazioni Android:
+   - **Impostazioni → App → Termux → Batteria → Nessuna restrizione**
+   - **Impostazioni → App → Termux:API → Autorizzazioni → tutte attive**
+
+4. 📱 **Impostazioni specifiche Huawei / EMUI** (molto importanti):
+   - **Impostazioni → Batteria → Avvio app → Termux** → imposta su **Manuale** e abilita
+     tutte e tre le voci: *Avvio automatico*, *Avvio indiretto*, *Esecuzione in background*
+   - **Impostazioni → Batteria → App protette** → aggiungi **Termux** e **Termux:API**
+   - (EMUI 10+) **Impostazioni → Batteria → Risparmio energetico → Nessun risparmio** durante i test
+   - Disabilita **"Ottimizzazione batteria"** per Termux: Impostazioni → App → Gestione permessi
+     → (menù 3 puntini) → Visualizza sistema → cerca Termux → Ottimizzazione batteria → **Non ottimizzare**
+   > ⚠️ Huawei EMUI ha il gestore batteria tra i più aggressivi di Android.
+   > Senza queste impostazioni Termux può essere terminato anche entro 1-2 minuti in background.
 
 ---
 
@@ -64,19 +77,32 @@ CFLAGS="-march=native" npm install sqlite3 --build-from-source
 
 ### Il server si ferma dopo qualche minuto
 
-Android Doze Mode sospende i processi Termux. Soluzioni:
+Android Doze Mode sospende i processi Termux. Su Huawei/EMUI il problema è amplificato
+dal gestore batteria proprietario. Soluzioni (in ordine di efficacia):
 
-1. **Termux WakeLock** (automatico nello script `start.sh` se `termux-api` è installato)
-2. **Batteria → Nessuna restrizione** per Termux nelle impostazioni Android
-3. Tieni il device in carica durante i test
+1. **Configura EMUI** (vedi sezione Prerequisiti sopra) — è la soluzione più efficace
+2. **Termux WakeLock** (automatico nello script `start.sh` se `termux-api` è installato)
+3. **Tieni il device in carica** durante i test (riduce l'aggressività del power manager)
+4. Mantieni **la sessione Termux in foreground** (non minimizzare durante i test)
+
+> ⚠️ Root non disponibile → non è possibile disabilitare Doze Mode a livello di sistema.
+> Le soluzioni sopra sono tutte operabili da utente normale.
 
 ### Porta 3001 già in uso
 
 ```bash
-# Trova e termina il processo sulla porta 3001
-lsof -i :3001 2>/dev/null || ss -tlnp | grep 3001
-# Non disponibili? Usa:
-cat /proc/net/tcp | grep 0BB9  # 0BB9 = 3001 in hex
+# In Termux non è disponibile lsof (richiede root su Android).
+# Usa questi comandi alternativi (nessun root richiesto):
+
+# Opzione 1 — netstat (disponibile con: pkg install net-tools)
+netstat -tlnp 2>/dev/null | grep 3001
+
+# Opzione 2 — lettura diretta /proc (sempre disponibile, no root)
+awk '$2 ~ /:0BB9/' /proc/net/tcp6 /proc/net/tcp
+# (3001 decimale = 0BB9 esadecimale)
+
+# Termina il processo Node.js corrente:
+killall node 2>/dev/null || pkill -f server.js
 ```
 
 ### Chrome non riesce a connettersi al microfono

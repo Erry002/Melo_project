@@ -39,6 +39,10 @@ tramite Termux, mantenendo la piena compatibilità con il deployment esistente s
 (ambiente terminale). Il frontend React **deve essere aperto in Chrome su Android** e puntare al
 backend che gira su Termux. Questo è il medesimo pattern usato su Raspberry Pi.
 
+> ✅ **Root NON richiesto.** Tutto il workflow — installazione Node.js, compilazione `sqlite3`,
+> avvio del server, gestione WakeLock — opera esclusivamente nello spazio utente di Termux
+> (`$HOME` = `/data/data/com.termux/files/home`). Nessun accesso a partizioni di sistema Android.
+
 ---
 
 ## 🔬 Analisi Tecnica di Compatibilità
@@ -160,6 +164,7 @@ NODE_ENV=production
 | R5 | Build frontend fallisce per memoria | Bassa | Medio | Fare build su macOS e copiare la `dist/` sul device via `scp` |
 | R6 | Android 10 restrizioni su operazioni network | Bassa | Alto | Verificare permessi `INTERNET` in Termux settings |
 | R7 | Aggiornamenti Termux rompono dipendenze | Bassa | Basso | Fissare versioni in `package.json`; testare dopo ogni `pkg upgrade` |
+| R11 | EMUI killa Termux entro pochi minuti | **Alta** (Huawei-specific) | Alto | Configurare "Avvio app" e "App protette" in Impostazioni Batteria EMUI; WakeLock; device in carica |
 
 ### Rischi Operativi
 
@@ -168,6 +173,20 @@ NODE_ENV=production
 | R8 | Lo script Raspberry non funziona su Termux | Script separati `android/` (questo branch) |
 | R9 | Path hardcoded `/home/erry002` negli script esistenti | Usare `$HOME` dinamico negli script Android |
 | R10 | PM2 non disponibile / instabile | Sostituire con processo lanciato da Termux + `&` e log su file |
+
+### Vincolo: Nessun accesso root
+
+Il device non dispone di root. Tutte le operazioni devono funzionare nel contesto utente Termux.
+Operazioni **escluse** di conseguenza:
+
+| Operazione root | Alternativa no-root usata |
+|-----------------|---------------------------|
+| `sudo apt-get` | `pkg install` (Termux pkg manager, no root) |
+| Disabilitare Doze Mode via ADB/sistema | `termux-wake-lock` + impostazioni EMUI manuale |
+| `lsof -i :PORT` (richiede root su Android) | `awk` su `/proc/net/tcp` + `killall node` |
+| Installare servizi systemd | `termux-services` (userspace) |
+| `sysctl` / tuning kernel | Non applicabile — ottimizzazioni disabilitate |
+| Accesso a `/system`, `/proc/sys` in scrittura | Non necessario per questo stack |
 
 ---
 
