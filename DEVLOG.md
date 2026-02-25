@@ -54,13 +54,24 @@
 - Chrome Android apre `http://localhost:3001` per accedere alla UI
 - Web Audio API / getUserMedia opera nel browser, non in Termux
 
+#### 🐛 Bug trovato e documentato (sessione serale 25 Feb):
+- `sqlite3` non compila su Android/Termux: causa **`No module named 'distutils'`**
+  - Root cause: `node-gyp 8.4.1` (bundled npm 11) usa `distutils`, rimosso in Python 3.12
+  - Termux installa `nodejs-lts 24.13.0` + `python 3.12.12` → combinazione rotta
+  - Fix: `pip install setuptools` ripristina distutils + `npm install -g node-gyp@latest`
+  - Script dedicato: `android/fix-sqlite3.sh`
+- `install.sh` aggiornato con il fix preventivo (setuptools + node-gyp upgrade prima di npm install)
+- `SETUP.md` aggiornato con troubleshooting preciso
+- **Buona notizia**: frontend build (`npm run build`) completata con successo su ARM64 in 59s
+
 #### TODO Sprint 1:
-- [ ] Installare Termux da F-Droid sul Huawei Mate 10 Pro
-- [ ] Eseguire `pkg install nodejs-lts python clang make git`
-- [ ] Clonare repo e fare checkout `feature/android-support`
-- [ ] Risolvere eventuale problema compilazione `sqlite3` su ARM64
+- [x] Installare Termux da F-Droid sul Huawei Mate 10 Pro
+- [x] Eseguire `pkg install nodejs-lts python clang make git`
+- [x] Clonare repo e fare checkout `feature/android-support`
+- [x] Eseguire `android/install.sh` (completato)
+- [x] Frontend compilato con successo (dist/ generata sul device)
+- [ ] **NEXT**: Eseguire `bash android/fix-sqlite3.sh` per fix sqlite3
 - [ ] Smoke test: `node server.js` + login da Chrome Android
-- [ ] Creare script `android/install.sh` e `android/start.sh`
 
 ---
 

@@ -64,16 +64,36 @@ http://localhost:3001
 
 ## Problemi noti e soluzioni
 
-### `sqlite3` non si compila
+### `sqlite3` non si compila — `No module named 'distutils'`
+
+Questa è la causa reale documentata su Huawei Mate 10 Pro (Node 24, Python 3.12):
+- `node-gyp 8.x` usa `distutils` di Python
+- Python 3.12 ha **rimosso** `distutils`
+- Termux installa Python 3.12 → `node-gyp` si blocca prima di compilare
+
+**Fix in un comando** (usa lo script dedicato):
 
 ```bash
-# Opzione A: build forzata
-cd ~/Melo_project
-npm install sqlite3 --build-from-source
-
-# Opzione B: reinstalla con flag espliciti
-CFLAGS="-march=native" npm install sqlite3 --build-from-source
+bash ~/Melo_project/android/fix-sqlite3.sh
 ```
+
+Oppure manualmente:
+
+```bash
+# Step 1: ripristina distutils per Python 3.12
+pip install setuptools
+
+# Step 2: aggiorna node-gyp (v8 non supporta Python 3.12)
+npm install -g node-gyp@latest
+
+# Step 3: ricompila sqlite3 puntando alle librerie Termux
+cd ~/Melo_project
+rm -rf node_modules/sqlite3/build
+LDFLAGS="-L$PREFIX/lib" CFLAGS="-I$PREFIX/include" npm rebuild sqlite3 --build-from-source
+```
+
+> `$PREFIX` in Termux punta a `/data/data/com.termux/files/usr` dove risiedono
+> `libsqlite`, `clang`, `make` e tutte le librerie di sistema.
 
 ### Il server si ferma dopo qualche minuto
 

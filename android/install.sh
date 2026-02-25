@@ -41,9 +41,19 @@ fi
 echo -e "   Node.js: $(node --version)"
 echo -e "   npm:     $(npm --version)"
 
-# ── 5. Installazione node-gyp globale ───────────────────────
-echo -e "\n${BLUE}📦 Installazione node-gyp (per moduli nativi)...${NC}"
-npm install -g node-gyp
+# ── 5. Fix Python 3.12 / distutils (necessario per node-gyp < 10) ───────
+# Python 3.12 ha rimosso il modulo 'distutils' usato da node-gyp 8.x.
+# setuptools lo ripristina senza richiedere root.
+echo -e "\n${BLUE}🐍 Step 5a: installazione setuptools (fix distutils per Python 3.12)...${NC}"
+pip install setuptools --quiet && \
+    echo -e "${GREEN}✅ setuptools installato.${NC}" || \
+    echo -e "${YELLOW}⚠️  pip install setuptools fallito — la compilazione nativa potrebbe fallire.${NC}"
+
+# ── 5b. Aggiornamento node-gyp (v8 non supporta Python 3.12) ────────────
+echo -e "\n${BLUE}📦 Step 5b: aggiornamento node-gyp (Python 3.12 support)...${NC}"
+npm install -g node-gyp@latest --quiet && \
+    echo -e "${GREEN}✅ node-gyp aggiornato: $(node-gyp --version)${NC}" || \
+    echo -e "${YELLOW}⚠️  aggiornamento node-gyp non riuscito, continuo.${NC}"
 
 # ── 6. Clone / aggiornamento repository ─────────────────────
 echo -e "\n${BLUE}📥 Configurazione repository...${NC}"
@@ -68,13 +78,15 @@ cd "$PROJECT_DIR"
 if npm install; then
     echo -e "${GREEN}✅ npm install completato.${NC}"
 else
-    echo -e "${YELLOW}⚠️  npm install fallito. Provo con build from source per sqlite3...${NC}"
-    # Tentativo 2: forza build nativa per sqlite3
+    echo -e "${YELLOW}⚠️  npm install fallito. Provo ricompilazione sqlite3 con librerie Termux...${NC}"
+    # Tentativo 2: installa tutto senza script nativi, poi ricompila sqlite3
+    # puntando esplicitamente alle librerie di sistema di Termux ($PREFIX/lib)
     npm install --ignore-scripts
+    LDFLAGS="-L$PREFIX/lib" \
+    CFLAGS="-I$PREFIX/include" \
     npm rebuild sqlite3 --build-from-source || {
         echo -e "${RED}❌ Compilazione sqlite3 fallita.${NC}"
-        echo -e "${YELLOW}   Leggi android/ANDROID_PLAN.md sezione 'Fase 1' per le alternative.${NC}"
-        echo -e "${YELLOW}   Provo con il solo driver JS (sqlite senza sqlite3)...${NC}"
+        echo -e "${YELLOW}   Esegui il fix dedicato: bash android/fix-sqlite3.sh${NC}"
     }
 fi
 
