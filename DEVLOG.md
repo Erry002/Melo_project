@@ -1,11 +1,11 @@
 # 📋 DEVLOG - Melo Project
-> **Diario di bordo dello sviluppo** | Ultima modifica: 20 Dicembre 2025
+> **Diario di bordo dello sviluppo** | Ultima modifica: 25 Febbraio 2026
 
 ## 🎯 STATUS PROGETTO
-- **Stato attuale**: ✅ Audio streaming stabile · ✅ UX mobile (bottom bar + drawer) pronta per test · ✅ Flusso recupero credenziali (password/token e promemoria username)
-- **Ultima sessione**: Stabilizzazione UI mobile (bottom bar + drawer) + fix tap/overlay
-- **Prossimi obiettivi**: Test su Raspberry (pull `test`) e feedback da device reali
-- **Branch corrente**: `test`
+- **Stato attuale**: ✅ Audio streaming stabile · ✅ UX mobile pronta · ✅ Recupero credenziali · 📱 Pianificazione Android in corso
+- **Ultima sessione**: Pianificazione strategica Android/Termux + creazione branch `feature/android-support`
+- **Prossimi obiettivi**: Setup Termux su Huawei Mate 10 Pro · Fix `sqlite3` ARM64 · Test backend da device
+- **Branch corrente**: `feature/android-support`
 
 ---
 
@@ -31,6 +31,38 @@
 ---
 
 ## 📅 CRONOLOGIA SVILUPPO
+
+### 📱 Sessione 25 Febbraio 2026 — PIANIFICAZIONE ANDROID
+**Focus**: Avvio del piano di sviluppo per supporto Android (Termux) su Huawei Mate 10 Pro
+
+#### Attività completate:
+1. Analisi completa compatibilità stack esistente con ambiente Termux/ARM64
+2. Creato branch `feature/android-support` (pubblicato su GitHub)
+3. Redatto documento `android/ANDROID_PLAN.md` con:
+   - Analisi tecnica di compatibilità (backend, frontend, audio, networking)
+   - Analisi dei rischi (10 rischi identificati con mitigazione)
+   - Roadmap a 3 fasi (Termux → Script Android → App Nativa)
+   - 5 Milestone con criteri di accettazione
+   - Tabella differenze Raspberry ↔ Android
+   - Checklist operativa Sprint 1/2/3
+4. Identificato problema critico: `sqlite3` richiede compilazione su ARM (soluzione: `--build-from-source` o `better-sqlite3`)
+5. Identificato workaround per Android Doze Mode: `termux-wake-lock` + `termux-services`
+
+#### Architettura confermata (Fase 1):
+- Backend Node.js gira in Termux sulla porta 3001
+- Frontend React (build statica) servito da Express
+- Chrome Android apre `http://localhost:3001` per accedere alla UI
+- Web Audio API / getUserMedia opera nel browser, non in Termux
+
+#### TODO Sprint 1:
+- [ ] Installare Termux da F-Droid sul Huawei Mate 10 Pro
+- [ ] Eseguire `pkg install nodejs-lts python clang make git`
+- [ ] Clonare repo e fare checkout `feature/android-support`
+- [ ] Risolvere eventuale problema compilazione `sqlite3` su ARM64
+- [ ] Smoke test: `node server.js` + login da Chrome Android
+- [ ] Creare script `android/install.sh` e `android/start.sh`
+
+---
 
 ### ✅ Sessione 20 Dicembre 2025 - RELEASE 1.0.0
 **Focus**: Consolidamento prodotto (quasi completo) + rifiniture UX
